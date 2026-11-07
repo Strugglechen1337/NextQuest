@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function AppNav() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => { fetch("/api/update").then(r => r.json()).then(data => setUpdateAvailable(data.available === true)).catch(() => {}); }, []);
   const pathname = usePathname();
   const isSetup = pathname?.startsWith("/setup") ?? false;
   const isStats = pathname?.startsWith("/stats") ?? false;
@@ -70,7 +73,7 @@ export function AppNav() {
               <svg className="h-4 w-4 opacity-85" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" strokeLinecap="round" />
               </svg>
-              Einrichtung
+              Einrichtung {updateAvailable && <span aria-label="Update verfügbar" title="Update verfügbar" className="h-2 w-2 rounded-full bg-emerald-400" />}
             </Link>
           </div>
         </nav>
@@ -137,7 +140,7 @@ export function AppNav() {
               <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" strokeLinecap="round" />
             </svg>
           </span>
-          <span>Einrichtung</span>
+          <span>Einrichtung {updateAvailable && <span aria-label="Update verfügbar" title="Update verfügbar" className="inline-block h-2 w-2 rounded-full bg-emerald-400" />}</span>
         </Link>
       </nav>
     </>
