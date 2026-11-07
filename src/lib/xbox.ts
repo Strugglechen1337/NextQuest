@@ -1,5 +1,6 @@
 import "server-only";
 import { tx } from "./db";
+import { xboxProgress } from "./achievement-progress";
 import { pruneOwnerships, upsertOwnership } from "./library";
 import { getSetting, setSetting } from "./settings";
 
@@ -337,7 +338,7 @@ async function importTitles(apiKey: string, xuid: string, response: unknown, fou
   tx(() => {
     for (const game of games) {
       const date = game.titleHistory?.lastTimePlayed;
-      upsertOwnership({ platform: "xbox", externalId: String(game.titleId), title: game.name,
+      upsertOwnership({ ...xboxProgress(game), platform: "xbox", externalId: String(game.titleId), title: game.name,
         coverUrl: cover(game.displayImage), playtimeMin: playtimes.get(String(game.titleId)),
         lastPlayed: date && Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null });
     }

@@ -24,6 +24,8 @@ const {db,tx}=require('../src/lib/db.ts');
 let d=db();
 for (const table of ['playtime_snapshots','suggestion_feedback','steam_tags','steam_tag_checks']) assert(d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table));
 const cols=d.prepare('PRAGMA table_info(games)').all().map(c=>c.name);
+assert(['status','user_note','user_rating'].every(c=>cols.includes(c)));
+assert(['achievements_earned','achievements_total','progress_pct','leaving_soon'].every(c=>d.prepare('PRAGMA table_info(ownerships)').all().some(x=>x.name===c)));
 assert(cols.includes('keywords') && cols.includes('session_pref'));
 assert(cols.includes('summary_de') && cols.includes('summary_de_state'));
 for (const [table, rows] of Object.entries(snapshot)) {

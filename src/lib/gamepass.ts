@@ -1,5 +1,6 @@
 import "server-only";
 import { tx } from "./db";
+import { fetchLeavingSoon } from "./gamepass-leaving";
 import { deletePlatform, pruneOwnerships, upsertOwnership } from "./library";
 import { getSetting, setSetting } from "./settings";
 
@@ -71,11 +72,13 @@ export async function syncGamePass() {
   const ids = new Set<string>();
   for (const c of catalogs) for (const id of await catalogIds(c, market)) ids.add(id);
   const products = await productDetails([...ids], market);
+  const leaving = await fetchLeavingSoon(catalogs, market);
   tx(() => {
     for (const p of products) {
       const title = p.LocalizedProperties[0]?.ProductTitle;
       if (!title) continue;
       upsertOwnership({
+        leavingSoon: leaving ? leaving.has(p.ProductId.toUpperCase()) : undefined,
         platform: "gamepass",
         externalId: p.ProductId,
         title,

@@ -1,6 +1,7 @@
 import "server-only";
 import { db, tx } from "./db";
 import { sessionData, snapshotPlaytime } from "./session-data";
+import { effectiveStatus, GAME_STATUSES, type GameStatus } from "./game-status";
 import { PLATFORMS, type PlatformId } from "./platforms";
 import type { Game, LibraryStats, Ownership } from "./types";
 
@@ -41,6 +42,9 @@ interface GameRow {
   summary_de: string | null;
   summary_de_state: string | null;
   completed: number;
+  status: string | null;
+  user_note: string | null;
+  user_rating: number | null;
   enrich_state: Game["enrichState"];
 }
 
@@ -54,6 +58,10 @@ interface OwnershipRow {
   last_played: string | null;
   cover_url: string | null;
   source: Ownership["source"];
+  achievements_earned: number | null;
+  achievements_total: number | null;
+  progress_pct: number | null;
+  leaving_soon: number | null;
 }
 
 function descriptionSource(state: string | null): Game["summaryDeSource"] {
@@ -132,6 +140,9 @@ export function listGames(): Game[] {
       summaryDe: g.summary_de,
       summaryDeSource: descriptionSource(g.summary_de_state),
       completed: !!g.completed,
+      status: effectiveStatus(g.status, !!g.completed),
+      userNote: g.user_note,
+      userRating: g.user_rating,
       enrichState: g.enrich_state,
       ownerships: os.map((o) => ({
         id: o.id,
@@ -141,6 +152,10 @@ export function listGames(): Game[] {
         playtimeMin: o.playtime_min,
         lastPlayed: o.last_played,
         source: o.source,
+        achievementsEarned: o.achievements_earned,
+        achievementsTotal: o.achievements_total,
+        progressPct: o.progress_pct,
+        leavingSoon: o.platform === "gamepass" && !!o.leaving_soon,
       })),
       playtimeMin: os.reduce((s, o) => s + o.playtime_min, 0),
       lastPlayed: lastPlayed ?? null,
@@ -166,6 +181,10 @@ export function stats(games: Game[]): LibraryStats {
 
 export interface OwnershipInput {
   platform: PlatformId;
+  achievementsEarned?: number | null;
+  achievementsTotal?: number | null;
+  progressPct?: number | null;
+  leavingSoon?: boolean;
   externalId: string;
   title: string;
   playtimeMin?: number;
@@ -229,6 +248,7 @@ export function upsertOwnership(input: OwnershipInput): number {
       existing.id,
     );
     snapshotPlaytime(existing.game_id, input.platform);
+    saveOwnershipExtras(input);
     return existing.game_id;
   }
 
@@ -246,6 +266,7 @@ export function upsertOwnership(input: OwnershipInput): number {
     input.coverUrl ?? null,
     input.source ?? "sync",
   );
+  saveOwnershipExtras(input);
   if (input.meta) {
     const state = input.meta.igdbId ? "done" : input.source === "demo" ? "manual" : undefined;
     const target = applyMeta(gameId, input.meta, state);
@@ -303,6 +324,13 @@ export function mergeGames(fromId: number, intoId: number) {
   d.prepare("UPDATE playtime_snapshots SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
   d.prepare("INSERT OR IGNORE INTO suggestion_feedback(game_id, time_class, value) SELECT ?, time_class, value FROM suggestion_feedback WHERE game_id = ?").run(intoId, fromId);
   d.prepare("INSERT OR IGNORE INTO steam_tags(game_id, name, votes) SELECT ?, name, votes FROM steam_tags WHERE game_id = ?").run(intoId, fromId);
+  const source = d.prepare("SELECT status, completed, user_note, user_rating FROM games WHERE id = ?").get(fromId) as { status: string | null; completed: number; user_note: string | null; user_rating: number | null } | undefined;
+  const target = d.prepare("SELECT status, completed FROM games WHERE id = ?").get(intoId) as { status: string | null; completed: number } | undefined;
+  if (source && target) {
+    const status = source.completed || target.completed ? "completed" : (!target.status || target.status === "open") ? effectiveStatus(source.status, false) : effectiveStatus(target.status, false);
+    setGameStatus(intoId, status);
+    d.prepare("UPDATE games SET user_note = COALESCE(NULLIF(user_note, ''), ?), user_rating = COALESCE(user_rating, ?) WHERE id = ?").run(source.user_note, source.user_rating, intoId);
+  }
   d.prepare(
     `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)),
       session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)),
@@ -313,10 +341,30 @@ export function mergeGames(fromId: number, intoId: number) {
   d.prepare("DELETE FROM games WHERE id = ?").run(fromId);
 }
 
+function saveOwnershipExtras(input: OwnershipInput) {
+  const pairs: [string, number][] = [];
+  for (const [key, column] of [["achievementsEarned", "achievements_earned"], ["achievementsTotal", "achievements_total"], ["progressPct", "progress_pct"]] as const) {
+    const value = input[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0 && (key !== "progressPct" || value <= 100)) pairs.push([column, value]);
+  }
+  if (input.platform === "gamepass" && input.leavingSoon !== undefined) pairs.push(["leaving_soon", input.leavingSoon ? 1 : 0]);
+  if (pairs.length) db().prepare(`UPDATE ownerships SET ${pairs.map(([col]) => `${col} = ?`).join(", ")} WHERE platform = ? AND external_id = ?`).run(...pairs.map(([,v]) => v), input.platform, input.externalId);
+}
+
+export function setGameStatus(gameId: number, status: GameStatus) {
+  if (!Object.hasOwn(GAME_STATUSES, status)) throw new Error("Ungültiger Status");
+  db().prepare("UPDATE games SET status = ?, completed = ?, completed_at = CASE WHEN ? THEN COALESCE(completed_at, datetime('now')) END WHERE id = ?").run(status, status === "completed" ? 1 : 0, status === "completed" ? 1 : 0, gameId);
+}
+
+export function setUserReview(gameId: number, note: unknown, rating: unknown) {
+  if (note !== undefined && note !== null && (typeof note !== "string" || note.length > 20000)) throw new Error("Ungültige Notiz (maximal 20000 Zeichen)");
+  if (rating !== undefined && rating !== null && (typeof rating !== "number" || !Number.isInteger(rating) || rating < 1 || rating > 5)) throw new Error("Bewertung muss zwischen 1 und 5 liegen");
+  if (note !== undefined) db().prepare("UPDATE games SET user_note = ? WHERE id = ?").run(note as string | null, gameId);
+  if (rating !== undefined) db().prepare("UPDATE games SET user_rating = ? WHERE id = ?").run(rating as number | null, gameId);
+}
+
 export function setCompleted(gameId: number, completed: boolean) {
-  db()
-    .prepare("UPDATE games SET completed = ?, completed_at = CASE WHEN ? THEN datetime('now') END WHERE id = ?")
-    .run(completed ? 1 : 0, completed ? 1 : 0, gameId);
+  setGameStatus(gameId, completed ? "completed" : "open");
 }
 
 /** Trennt einen Besitz-Eintrag in ein eigenes Spiel ab (falls falsch zusammengeführt). */

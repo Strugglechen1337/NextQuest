@@ -1,5 +1,6 @@
 import "server-only";
 import { tx } from "./db";
+import { steamProgress, type AchievementProgress } from "./achievement-progress";
 import { pruneOwnerships, upsertOwnership } from "./library";
 import { getSetting, setSetting } from "./settings";
 
@@ -77,9 +78,19 @@ export async function syncSteam() {
     throw new Error(
       "Steam liefert keine Spiele. Ist in den Steam-Datenschutzeinstellungen „Spieldetails“ auf „Öffentlich“ gestellt?",
     );
+  const progress = new Map<number, AchievementProgress>();
+  const recent = games.filter(g => g.rtime_last_played && g.rtime_last_played * 1000 >= Date.now() - 90 * 86400000)
+    .sort((a,b) => (b.rtime_last_played ?? 0) - (a.rtime_last_played ?? 0)).slice(0, 50);
+  for (const g of recent) {
+    try {
+      const res = await fetch(`${API}/ISteamUserStats/GetPlayerAchievements/v1/?key=${encodeURIComponent(apiKey)}&steamid=${steamId}&appid=${g.appid}`, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (res.ok) progress.set(g.appid, steamProgress(await res.json()));
+    } catch { /* Privat, keine Erfolge oder Dienst nicht erreichbar: vorhandene Werte erhalten. */ }
+  }
   tx(() => {
     for (const g of games) {
       upsertOwnership({
+        ...progress.get(g.appid),
         platform: "steam",
         externalId: String(g.appid),
         title: g.name,
