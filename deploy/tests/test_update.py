@@ -39,6 +39,7 @@ class UpdateTests(unittest.TestCase):
         self.health_failure_permanent = False
         self.shrink = False
         self.running = False
+        self.active_syncs = 0
         self.enabled = True
         self.notifications = []
         self.sleeps = []
@@ -59,7 +60,7 @@ class UpdateTests(unittest.TestCase):
             return {'auto': self.enabled}
         if path == '/api/jobs':
             self.assertTrue((self.directory / 'maintenance.lock').exists())
-            return {'running': {} if self.running else None}
+            return {'running': {} if self.running else None, 'activeSyncs': self.active_syncs}
         if path == '/api/health':
             if self.health_failure_permanent:
                 return {'ok': False}
@@ -144,6 +145,15 @@ class UpdateTests(unittest.TestCase):
 
     def test_running_job_waits_and_defers(self):
         self.running = True
+        status = self.execute()
+        self.assertEqual('failed', status['state'])
+        self.assertIn('verschoben', status['message'])
+        self.assertEqual([30] * 60, self.sleeps)
+        self.assertFalse(self.calls)
+
+    def test_direct_sync_waits_and_defers(self):
+        # Ein Abgleich über den Knopf in der Einrichtung zählt wie ein laufender Job.
+        self.active_syncs = 1
         status = self.execute()
         self.assertEqual('failed', status['state'])
         self.assertIn('verschoben', status['message'])

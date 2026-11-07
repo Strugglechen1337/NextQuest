@@ -2,6 +2,7 @@ import { descriptionsBatch } from "@/lib/descriptions";
 import { syncXbox } from "@/lib/xbox";
 import { handle } from "@/lib/api";
 import { assertNoMaintenance } from "@/lib/maintenance";
+import { trackSync } from "@/lib/jobs";
 import { syncEpic } from "@/lib/epic";
 import { syncGamePass } from "@/lib/gamepass";
 import { syncGog } from "@/lib/gog";
@@ -13,7 +14,7 @@ import { disconnectPlayStation, syncPlayStation } from "@/lib/playstation";
 
 export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]">) {
   const { source } = await ctx.params;
-  return handle(async () => {
+  return handle(() => trackSync(async () => {
     // Während eines Server-Updates keine Abgleiche (siehe src/lib/maintenance.ts)
     if (!source.endsWith("-disconnect")) assertNoMaintenance();
     switch (source) {
@@ -76,5 +77,5 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]"
       default:
         throw new Error("Unbekannte Quelle");
     }
-  });
+  }));
 }

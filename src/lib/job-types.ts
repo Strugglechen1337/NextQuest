@@ -14,6 +14,8 @@ export interface Job {
 }
 export interface JobsStatus {
   running: Job | null;
+  /** Gerade laufende direkte Abgleiche über /api/sync (Knopf in der Einrichtung) */
+  activeSyncs: number;
   last: Job | null;
   auto: { enabled: boolean; time: string; lastRun: string | null };
   nextRun: string | null;

@@ -147,7 +147,11 @@ class Updater:
                 jobs = self.fetch('/api/jobs')
                 if 'running' not in jobs:
                     raise RuntimeError('Jobstatus ungültig')
-                if jobs['running'] is None:
+                # Auch direkte Abgleiche (Knopf in der Einrichtung) abwarten; ältere App-Stände kennen
+                # 'activeSyncs' noch nicht und zählen dann als 0.
+                if jobs['running'] is None and int(jobs.get('activeSyncs') or 0) == 0:
+                    # Kurz warten, damit gerade laufende kurze Schreibanfragen sicher abgeschlossen sind
+                    self.sleep(2)
                     break
                 if attempt == 60:
                     raise RuntimeError('Update verschoben, Abgleich lief')

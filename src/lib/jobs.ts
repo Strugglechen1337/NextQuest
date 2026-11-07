@@ -40,7 +40,21 @@ export function jobsStatus(now = new Date()): JobsStatus {
   try { last = JSON.parse(getSetting("jobs.last") ?? "null"); } catch { /* Ignore an invalid historical entry. */ }
   const auto = { enabled: getSetting("auto.enabled") !== "0", time: getSetting("auto.time") ?? "04:00", lastRun: getSetting("auto.lastRun") };
   const plan = schedule(now, auto.time, auto.lastRun);
-  return { running: state.running, last, auto, nextRun: auto.enabled ? (plan.due ? now : plan.next).toISOString() : null };
+  return { running: state.running, activeSyncs: activeSyncCount(), last, auto, nextRun: auto.enabled ? (plan.due ? now : plan.next).toISOString() : null };
+}
+
+const syncCounter = globalThis as unknown as { __nextquestActiveSyncs?: number };
+export function activeSyncCount() {
+  return syncCounter.__nextquestActiveSyncs ?? 0;
+}
+/** Zählt direkte Abgleiche mit, damit der Server-Updater auf sie warten kann. */
+export async function trackSync<T>(fn: () => Promise<T>): Promise<T> {
+  syncCounter.__nextquestActiveSyncs = activeSyncCount() + 1;
+  try {
+    return await fn();
+  } finally {
+    syncCounter.__nextquestActiveSyncs = Math.max(0, activeSyncCount() - 1);
+  }
 }
 
 async function batches(job: Job, descriptions = false) {
