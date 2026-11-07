@@ -47,19 +47,57 @@ export function GameDetail({
     }, true);
 
   return (
-    <Modal open onClose={onClose} wide>
-      <div className="flex flex-col gap-5 sm:flex-row">
-        <Cover src={game.coverUrl} title={game.title} className="aspect-[3/4] w-40 shrink-0 self-start rounded-xl" />
-        <div className="min-w-0 flex-1 space-y-3">
-          <div>
-            <h2 className="pr-8 text-xl font-bold">{game.title}</h2>
-            <div className="text-sm text-white/50">
+    <Modal
+      open
+      onClose={onClose}
+      wide
+      title={game.title}
+      footer={
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            className={`${game.completed ? "btn-ghost" : "btn-primary"} flex-1 sm:flex-initial`}
+            onClick={() =>
+              run(() => api(`/api/games/${game.id}`, { method: "PATCH", body: { completed: !game.completed } }))
+            }
+          >
+            {game.completed ? "↺ Wieder als offen markieren" : "✓ Als durchgespielt abhaken"}
+          </button>
+          {igdb && (
+            <button type="button" className="btn-ghost" onClick={() => setRematch((v) => !v)}>
+              Zuordnung ändern
+            </button>
+          )}
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4 @lg:flex-row @lg:gap-5">
+        <div className="flex items-start gap-4 @lg:block">
+          <Cover
+            src={game.coverUrl}
+            title={game.title}
+            className="aspect-[3/4] w-24 shrink-0 self-start rounded-xl @sm:w-28 @lg:w-40"
+          />
+          <div className="min-w-0 flex-1 space-y-1.5 @lg:hidden">
+            <h2 className="text-lg font-bold leading-snug break-words">{game.title}</h2>
+            <div className="text-sm text-white/55">
+              {game.releaseYear ?? ""}
+              {game.genres.length ? ` · ${game.genres.slice(0, 4).join(", ")}` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-3.5">
+          <div className="hidden @lg:block">
+            <h2 className="text-xl font-bold leading-snug break-words">{game.title}</h2>
+            <div className="text-sm text-white/55">
               {game.releaseYear ?? ""}
               {game.genres.length ? ` · ${game.genres.slice(0, 4).join(", ")}` : ""}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 text-sm @md:grid-cols-4">
             <Stat label="Deine Spielzeit" value={formatMinutes(game.playtimeMin)} />
             <Stat label="Bewertung" value={game.rating ? `${Math.round(game.rating)}/100` : "–"} />
             <Stat
@@ -70,41 +108,42 @@ export function GameDetail({
           </div>
 
           <div className="card p-3">
-            <div className="mb-1.5 text-xs uppercase tracking-wide text-white/40">Spieldauer</div>
+            <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Spieldauer</div>
             <div className="grid grid-cols-3 gap-2 text-sm">
               <div>
-                <div className="text-white/50">Zügig</div>
+                <div className="text-white/55">Zügig</div>
                 <div className="font-semibold">{formatMinutes(game.ttbHastily)}</div>
               </div>
               <div>
-                <div className="text-white/50">Normal</div>
+                <div className="text-white/55">Normal</div>
                 <div className="font-semibold">{formatMinutes(game.ttbNormally)}</div>
               </div>
               <div>
-                <div className="text-white/50">100 %</div>
+                <div className="text-white/55">100 %</div>
                 <div className="font-semibold">{formatMinutes(game.ttbCompletely)}</div>
               </div>
             </div>
           </div>
 
-          {game.summary && <p className="line-clamp-4 text-sm text-white/70">{game.summary}</p>}
+          {game.summary && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summary}</p>}
 
           <div>
-            <div className="mb-1.5 text-xs uppercase tracking-wide text-white/40">Wo du es hast</div>
+            <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Wo du es hast</div>
             <div className="divide-y divide-white/5 rounded-xl border border-white/10">
               {game.ownerships.map((o) => (
-                <div key={o.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                <div key={o.id} className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
                   <PlatformPill platform={o.platform} size="md" />
-                  <span className="min-w-0 flex-1 truncate text-white/70" title={o.title}>
+                  <span className="min-w-0 flex-1 truncate text-white/80" title={o.title}>
                     {o.title}
                   </span>
-                  <span className="text-white/50">
+                  <span className="text-white/55">
                     {PLATFORMS[o.platform]?.subscription ? "Abo" : formatMinutes(o.playtimeMin)}
                   </span>
                   {game.ownerships.length > 1 && (
                     <button
+                      type="button"
                       disabled={busy}
-                      className="text-xs text-white/40 hover:text-white"
+                      className="rounded px-2 py-1 text-xs text-white/55 transition hover:bg-white/10 hover:text-white"
                       title="Falsch zugeordnet? Als eigenes Spiel abtrennen"
                       onClick={() => run(() => api(`/api/ownerships/${o.id}`, { body: {} }), true)}
                     >
@@ -113,8 +152,9 @@ export function GameDetail({
                   )}
                   {o.source !== "sync" && (
                     <button
+                      type="button"
                       disabled={busy}
-                      className="text-xs text-red-300/70 hover:text-red-300"
+                      className="rounded px-2 py-1 text-xs text-red-300/80 transition hover:bg-red-500/10 hover:text-red-300"
                       onClick={() =>
                         confirm(`„${o.title}“ (${PLATFORMS[o.platform]?.label}) entfernen?`) &&
                         run(() => api(`/api/ownerships/${o.id}`, { method: "DELETE" }), game.ownerships.length === 1)
@@ -130,26 +170,9 @@ export function GameDetail({
 
           {error && <div className="text-sm text-red-300">{error}</div>}
 
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              disabled={busy}
-              className={game.completed ? "btn-ghost" : "btn-primary"}
-              onClick={() =>
-                run(() => api(`/api/games/${game.id}`, { method: "PATCH", body: { completed: !game.completed } }))
-              }
-            >
-              {game.completed ? "↺ Wieder als offen markieren" : "✓ Als durchgespielt abhaken"}
-            </button>
-            {igdb && (
-              <button className="btn-ghost" onClick={() => setRematch((v) => !v)}>
-                Zuordnung ändern
-              </button>
-            )}
-          </div>
-
           {rematch && (
             <div className="card space-y-2 p-3">
-              <div className="text-sm text-white/60">
+              <div className="text-sm text-white/65">
                 Wähle das richtige Spiel aus. Gibt es das Spiel schon in deiner Sammlung, werden die Einträge
                 zusammengeführt.
               </div>
@@ -165,7 +188,7 @@ export function GameDetail({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="card px-3 py-2">
-      <div className="text-[11px] text-white/45">{label}</div>
+      <div className="text-[11px] text-white/50">{label}</div>
       <div className="font-semibold">{value}</div>
     </div>
   );
