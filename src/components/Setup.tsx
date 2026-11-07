@@ -186,9 +186,14 @@ function IgdbStep({ data, reload }: StepProps) {
           </>
         )}
       </div>
-      <button type="button" className="btn-ghost" disabled={busy} onClick={descriptions}>
-        Deutsche Beschreibungen laden
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-ghost" disabled={busy} onClick={descriptions}>
+          Deutsche Beschreibungen laden
+        </button>
+        <span className="text-sm text-white/55">
+          Deutsche Texte: {data.games.filter((g) => g.summaryDe).length} von {data.games.length} Spielen
+        </span>
+      </div>
       {progress && (
         <div className="space-y-1">
           <p className="text-sm text-white/65">Läuft auf dem Server – du kannst die Seite schließen.</p>
