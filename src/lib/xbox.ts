@@ -139,6 +139,58 @@ function minutes(response: unknown, xuid: string) {
   return result;
 }
 
+function parseJsonText(value: string): unknown {
+  const s = value.trim();
+  if (!s.startsWith("{") && !s.startsWith("[") && !s.startsWith('"')) return undefined;
+  try { return JSON.parse(s); } catch { return undefined; }
+}
+
+const looksLikeTitle = (o: Record<string, unknown>) => "titleId" in o || "titleid" in o || ("name" in o && "type" in o);
+
+/**
+ * Sucht die Titel-Liste in einer OpenXBL-Antwort – egal wie sie verpackt ist
+ * ({code, content}, Listen-Hüllen, JSON als Text, auch mehrfach verschachtelt).
+ * Gibt [] für eine echte leere Liste zurück und null, wenn keine Liste gefunden wurde.
+ */
+function findTitles(value: unknown, depth = 0): Record<string, unknown>[] | null {
+  if (depth > 8) return null;
+  if (typeof value === "string") {
+    const parsed = parseJsonText(value);
+    return parsed === undefined ? null : findTitles(parsed, depth + 1);
+  }
+  if (Array.isArray(value)) {
+    const items = value.map(v => (typeof v === "string" ? parseJsonText(v) ?? v : v));
+    const objects = items.filter((v): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v));
+    if (objects.length && objects.some(looksLikeTitle)) return objects;
+    for (const item of items) {
+      const inner = findTitles(item, depth + 1);
+      if (inner) return inner;
+    }
+    return null;
+  }
+  if (value !== null && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if (Array.isArray(o.titles) && o.titles.length === 0) return [];
+    const keys = ["titles", "content", "data", "result", ...Object.keys(o)];
+    for (const key of [...new Set(keys)]) {
+      if (!(key in o)) continue;
+      const inner = findTitles(o[key], depth + 1);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
+/** Beschreibt den Aufbau einer Antwort ohne Inhalte (nur Schlüssel, Typen, Längen) – für Fehlermeldungen. */
+function shape(value: unknown, depth = 0): string {
+  if (depth > 3) return "…";
+  if (typeof value === "string") return parseJsonText(value) === undefined ? `Text(${value.length})` : `JSON-Text(${value.length})`;
+  if (Array.isArray(value)) return `[${value.length}× ${value.length ? shape(value[0], depth + 1) : "–"}]`;
+  if (value !== null && typeof value === "object")
+    return `{${Object.entries(value).slice(0, 8).map(([k, v]) => `${k}: ${shape(v, depth + 1)}`).join(", ")}}`;
+  return value === null ? "null" : typeof value;
+}
+
 /** Spiel oder App? Typ-Angaben unterscheiden sich je nach OpenXBL-Version und Gerät. */
 function isGame(t: Record<string, unknown>): boolean {
   const kind = String(t.type ?? t.titleType ?? "").toLowerCase();
@@ -155,35 +207,33 @@ export async function syncXbox() {
   const xuid = getSetting("xbox.xuid");
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
   let response = await request(apiKey, "/player/titleHistory");
-  let data = payload(response);
-  if (!Array.isArray(data.titles)) unexpectedFormat(response);
+  let found = findTitles(response);
+  if (found === null) throw new Error(`OpenXBL-Antwort enthält keine Titel-Liste (Aufbau: ${shape(response)}).`);
   // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen.
   // Diese Liste kann unvollständig sein – daher wird in diesem Fall nichts entfernt (nur ergänzt).
   let fromFallback = false;
-  if (data.titles.length === 0) {
+  if (found.length === 0) {
     const alt = await request(apiKey, "/achievements").catch(() => null);
-    const altData = alt ? payload(alt) : {};
-    if (Array.isArray(altData.titles) && altData.titles.length) {
+    const altFound = alt ? findTitles(alt) : null;
+    if (altFound?.length) {
       response = alt;
-      data = altData;
+      found = altFound;
       fromFallback = true;
     }
   }
-  if (!Array.isArray(data.titles)) unexpectedFormat(response);
   // Never prune from a truncated response: no continuation contract is documented.
   if (layers(response).some(layer => object(object(layer).pagingInfo).continuationToken || object(layer).continuationToken))
     throw new Error("OpenXBL hat nur einen Teil der Titel-Historie geliefert. Die vorhandene Bibliothek bleibt erhalten; bitte später erneut versuchen.");
-  const titles = data.titles.map(object);
+  const titles = found;
   const games = titles.filter(g =>
     isGame(g) && typeof g.name === "string" && g.name.trim() && /^\d+$/.test(String(g.titleId)),
   ) as unknown as Title[];
   if (!games.length) {
     // Diagnose ohne Inhalte: Anzahl und vorkommende Typ-Angaben
     const kinds = [...new Set(titles.map(t => String(t.type ?? t.mediaItemType ?? t.titleType ?? "ohne Typ")))].slice(0, 6);
-    const fields = Object.keys(titles[0] ?? {}).slice(0, 12).join(", ") || "keine";
     throw new Error(
       titles.length
-        ? `OpenXBL liefert ${titles.length} Titel, aber keiner wurde als Spiel erkannt (Typen: ${kinds.join(", ")}; Felder: ${fields}).`
+        ? `OpenXBL liefert ${titles.length} Titel, aber keiner wurde als Spiel erkannt (Typen: ${kinds.join(", ")}; Aufbau: ${shape(response)}).`
         : "OpenXBL liefert keine gestarteten Spiele. Starte ein Xbox-Spiel und prüfe die Xbox-Datenschutzeinstellungen; vorhandene Einträge bleiben erhalten.",
     );
   }

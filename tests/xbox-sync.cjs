@@ -67,4 +67,20 @@ test('truncated fallback keeps existing entries', async () => {
   reset(); responses({titles:[]}, {titles:[game('3')], pagingInfo:{continuationToken:'more'}});
   await assert.rejects(syncXbox()); assert.deepEqual(ids(), ['1','2']);
 });
+
+// Verpackungsvarianten der OpenXBL-Antwort
+const wrapped = {
+  'code/content object': {code:200, content:{xuid:'123', titles:[game('1'),game('3')]}},
+  'content as JSON text': {code:200, content:JSON.stringify({xuid:'123', titles:[game('1'),game('3')]})},
+  'single-item list wrapper': {code:200, content:[{xuid:'123', titles:[game('1'),game('3')]}]},
+  'list of JSON texts': {code:200, content:[JSON.stringify({xuid:'123', titles:[game('1'),game('3')]})]},
+  'double-encoded JSON text': {code:200, content:JSON.stringify(JSON.stringify({titles:[game('1'),game('3')]}))},
+  'titles as JSON texts': {code:200, content:{titles:[JSON.stringify(game('1')), JSON.stringify(game('3'))]}},
+};
+for (const [name, body] of Object.entries(wrapped)) {
+  test(`unwraps ${name}`, async () => {
+    reset(); responses(body, null);
+    await syncXbox(); assert.deepEqual(ids(), ['1','3']);
+  });
+}
 test.after(() => { db().close(); fs.rmSync(dir, {recursive:true, force:true}); });
