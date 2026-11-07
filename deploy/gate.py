@@ -1,10 +1,11 @@
-"""LAN PIN gate for Spoolman; Caddy handles HTTP and WebSocket proxying."""
+"""LAN PIN gate; Caddy handles HTTP and WebSocket proxying."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import ipaddress
 import json
+import os
 import re
 import secrets
 import sqlite3
@@ -16,10 +17,8 @@ from urllib.parse import quote, urlsplit
 
 from flask import Flask, abort, redirect, render_template_string, request, session
 
-HOSTS = {"192.168.2.213:7916"}
-LAN = ipaddress.ip_network("192.168.2.0/24")
 COOKIE = "nextquest_pin_session"
-LOGIN_HTML = """<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{{ brand }} – Anmeldung</title><style>body{font:16px system-ui;background:#f4efe9;color:#332b26;min-height:100vh;display:grid;place-items:center;margin:0}.box{background:#fffaf5;padding:2rem;border-radius:1rem;box-shadow:0 8px 30px #30251b20;width:min(88vw,24rem)}h1{font-size:1.4rem}input,button{box-sizing:border-box;width:100%;padding:.8rem;margin-top:.7rem;border-radius:.6rem;border:1px solid #c9bdb2;font:inherit}button{background:#a85438;color:white;border:0;cursor:pointer}.err{color:#a32222}</style><main class=box><h1>{{ brand }}</h1><p>Bitte mit deiner Cockpit-PIN anmelden.</p>{% if error %}<p class=err>{{ error }}</p>{% endif %}<form method=post action='/_auth/login'><input type=hidden name=csrf value='{{ csrf }}'><input type=hidden name=next value='{{ next }}'><label>PIN / Passwort<input type=password name=pin autocomplete=current-password required autofocus></label><button type=submit>Anmelden</button></form></main></html>"""
+LOGIN_HTML = """<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{{ brand }} – Anmeldung</title><style>body{font:16px system-ui;background:#f4efe9;color:#332b26;min-height:100vh;display:grid;place-items:center;margin:0}.box{background:#fffaf5;padding:2rem;border-radius:1rem;box-shadow:0 8px 30px #30251b20;width:min(88vw,24rem)}h1{font-size:1.4rem}input,button{box-sizing:border-box;width:100%;padding:.8rem;margin-top:.7rem;border-radius:.6rem;border:1px solid #c9bdb2;font:inherit}button{background:#a85438;color:white;border:0;cursor:pointer}.err{color:#a32222}</style><main class=box><h1>{{ brand }}</h1><p>Bitte mit deiner PIN anmelden.</p>{% if error %}<p class=err>{{ error }}</p>{% endif %}<form method=post action='/_auth/login'><input type=hidden name=csrf value='{{ csrf }}'><input type=hidden name=next value='{{ next }}'><label>PIN / Passwort<input type=password name=pin autocomplete=current-password required autofocus></label><button type=submit>Anmelden</button></form></main></html>"""
 
 
 def _client_ip() -> ipaddress.IPv4Address | ipaddress.IPv6Address:
@@ -41,18 +40,21 @@ def _safe_return(value: str) -> str:
     return value
 
 
-def create_app(auth: dict, *, rate_path: str | Path = ":memory:", hosts: set[str] | None = None) -> Flask:
+def create_app(auth: dict, *, rate_path: str | Path = ":memory:", hosts: set[str], lan: str) -> Flask:
     app = Flask(__name__)
     app.secret_key = hmac.digest(auth["session_secret"].encode(), b"nextquest-pin-session-v1", "sha256")
     app.config.update(
         SESSION_COOKIE_NAME=COOKIE,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
-        SESSION_COOKIE_SECURE=False,  # HTTP only on the trusted LAN, matching the existing AdGuard PIN gate.
+        SESSION_COOKIE_SECURE=False,  # HTTP only on the trusted LAN.
         PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
         MAX_CONTENT_LENGTH=8192,
     )
-    allowed_hosts = hosts or HOSTS
+    if not hosts or not all(hosts):
+        raise ValueError("Mindestens ein Gate-Host ist erforderlich")
+    allowed_hosts = hosts
+    network = ipaddress.ip_network(lan)
     db = sqlite3.connect(str(rate_path), check_same_thread=False)
     db.execute("CREATE TABLE IF NOT EXISTS failures (ip TEXT NOT NULL, at REAL NOT NULL)")
     db.commit()
@@ -67,7 +69,7 @@ def create_app(auth: dict, *, rate_path: str | Path = ":memory:", hosts: set[str
             addr = _client_ip()
         except ValueError:
             abort(403)
-        if not (addr.is_loopback or addr in LAN):
+        if not (addr.is_loopback or addr in network):
             abort(403)
         origin = request.headers.get("Origin")
         if origin and origin != "http://" + external_host:
@@ -151,9 +153,11 @@ def create_app(auth: dict, *, rate_path: str | Path = ":memory:", hosts: set[str
 
 
 def runtime() -> Flask:
-    auth_path = Path.home() / ".config/hermes-secrets/nova_cockpit_auth.json"
+    auth_path = Path(os.environ["NEXTQUEST_PIN_CONFIG"])
     auth = json.loads(auth_path.read_text())
-    return create_app(auth, rate_path=Path.home() / "nextquest/deploy/state/login.sqlite3")
+    return create_app(auth, rate_path=Path(os.environ["NEXTQUEST_GATE_STATE"]),
+                      hosts=set(os.environ["NEXTQUEST_ALLOWED_HOSTS"].split(",")),
+                      lan=os.environ["NEXTQUEST_LAN"])
 
 
 if __name__ == "__main__":

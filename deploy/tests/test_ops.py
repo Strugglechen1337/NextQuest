@@ -79,6 +79,16 @@ class MonitorTests(unittest.TestCase):
 
 
 class AvailabilityTests(unittest.TestCase):
+    def setUp(self):
+        host = patch.object(monitor, 'GATE_HOST', '10.42.0.10')
+        host.start()
+        self.addCleanup(host.stop)
+
+    def test_missing_host_fails_closed(self):
+        good = subprocess.CompletedProcess([], 0, stdout='active\n')
+        with patch.object(monitor, 'GATE_HOST', ''), patch.object(monitor.subprocess, 'run', return_value=good):
+            self.assertEqual(['Gate-Host nicht konfiguriert'], monitor.availability())
+
     def test_normal_and_service_failure(self):
         connection = MagicMock()
         connection.getresponse.return_value.status = 302

@@ -6,10 +6,11 @@ Requires=nextquest.service nextquest-gate.service
 
 [Service]
 Type=simple
-WorkingDirectory=/home/marcel/nextquest
-Environment=XDG_CONFIG_HOME=/home/marcel/nextquest/runtime/config
-Environment=XDG_DATA_HOME=/home/marcel/nextquest/runtime/data
-ExecStart=/home/marcel/nextquest/runtime/caddy run --config /home/marcel/nextquest/deploy/Caddyfile --adapter caddyfile
+WorkingDirectory=%h/nextquest
+Environment=XDG_CONFIG_HOME=%h/nextquest/runtime/config
+Environment=XDG_DATA_HOME=%h/nextquest/runtime/data
+EnvironmentFile=%h/.config/nextquest/deploy.env
+ExecStart=%h/nextquest/runtime/caddy run --config %h/nextquest/deploy/Caddyfile --adapter caddyfile
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -17,7 +18,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/marcel/nextquest/runtime
+ReadWritePaths=%h/nextquest/runtime
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=192M
 TasksMax=64

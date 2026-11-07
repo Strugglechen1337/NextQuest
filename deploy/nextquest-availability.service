@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=%h/.config/nextquest/ops.env
+EnvironmentFile=%h/.config/nextquest/deploy.env
 ExecStart=/usr/bin/python3 %h/.local/lib/nextquest-ops/monitor.py --availability
 TimeoutStartSec=120
 UMask=0077

@@ -4,14 +4,14 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/marcel/nextquest
+WorkingDirectory=%h/nextquest
 Environment=NODE_ENV=production
 Environment=NEXT_TELEMETRY_DISABLED=1
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=7918
-Environment=DATA_DIR=/home/marcel/nextquest/data
-Environment=NEXTQUEST_COMMIT=4483706591640562fdec04033a40e014c3e45716
-ExecStart=/usr/bin/node /home/marcel/nextquest/.next/standalone/server.js
+Environment=DATA_DIR=%h/nextquest/data
+EnvironmentFile=%h/.config/nextquest/deploy.env
+ExecStart=/usr/bin/node %h/nextquest/.next/standalone/server.js
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -19,7 +19,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/marcel/nextquest/data
+ReadWritePaths=%h/nextquest/data
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=768M
 TasksMax=64

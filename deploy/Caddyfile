@@ -2,8 +2,8 @@
     admin off
     auto_https off
 }
-http://192.168.2.213:7916 {
-    bind 192.168.2.213
+http://{$NEXTQUEST_GATE_HOST}:{$NEXTQUEST_GATE_PORT} {
+    bind {$NEXTQUEST_BIND}
     route {
         @gate path /_auth/*
         handle @gate {

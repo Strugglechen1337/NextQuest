@@ -4,8 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/marcel/nextquest/deploy
-ExecStart=/home/marcel/adguard-learning/.venv/bin/python /home/marcel/nextquest/deploy/gate.py
+WorkingDirectory=%h/nextquest/deploy
+EnvironmentFile=%h/.config/nextquest/deploy.env
+ExecStart=%h/nextquest/.venv/bin/python %h/nextquest/deploy/gate.py
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -13,7 +14,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/marcel/nextquest/deploy/state
+ReadWritePaths=%h/nextquest/deploy/state
 RestrictAddressFamilies=AF_INET AF_UNIX
 MemoryMax=128M
 TasksMax=24
