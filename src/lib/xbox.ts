@@ -200,6 +200,29 @@ function hasContinuation(value: unknown, depth = 0): boolean {
   return false;
 }
 
+/** Liest eine (ggf. verpackte) Fehlermeldung aus, z. B. {code, description}. Gibt null zurück, wenn keine da ist. */
+function upstreamError(value: unknown, depth = 0): string | null {
+  if (depth > 6) return null;
+  if (typeof value === "string") {
+    const parsed = parseJsonText(value);
+    return parsed === undefined ? null : upstreamError(parsed, depth + 1);
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const o = value as Record<string, unknown>;
+  const text = ["description", "message", "error_description", "error", "reason", "detail"]
+    .map(k => o[k])
+    .find((v): v is string => typeof v === "string" && v.trim() !== "");
+  if (text) {
+    const code = o.code ?? o.statusCode ?? o.status;
+    return `${code !== undefined && typeof code !== "object" ? `${String(code)} – ` : ""}${text.slice(0, 160)}`;
+  }
+  for (const key of ["content", "data", "error"]) {
+    const inner = upstreamError(o[key], depth + 1);
+    if (inner) return inner;
+  }
+  return null;
+}
+
 /** Beschreibt den Aufbau einer Antwort ohne Inhalte (nur Schlüssel, Typen, Längen) – für Fehlermeldungen. */
 function shape(value: unknown, depth = 0): string {
   if (depth > 3) return "…";
@@ -227,11 +250,36 @@ export async function syncXbox() {
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
   let response = await request(apiKey, "/player/titleHistory");
   let found = findTitles(response);
-  if (found === null) throw new Error(`OpenXBL-Antwort enthält keine Titel-Liste (Aufbau: ${shape(response)}).`);
+  if (found === null) {
+    // Keine Liste – meist eine verpackte Fehlermeldung von Microsoft. Historie direkt über die XUID versuchen.
+    const firstError = upstreamError(response);
+    const byXuid = await request(apiKey, `/player/titleHistory/${xuid}`).catch(() => null);
+    const byXuidFound = byXuid ? findTitles(byXuid) : null;
+    if (byXuidFound !== null) {
+      response = byXuid;
+      found = byXuidFound;
+    } else {
+      // Letzter Versuch: Erfolgs-Liste (nur ergänzen, nie entfernen)
+      const alt = await request(apiKey, "/achievements").catch(() => null);
+      const altFound = alt ? findTitles(alt) : null;
+      if (!altFound?.length) {
+        throw new Error(
+          firstError
+            ? `Xbox-Dienst meldet: ${firstError}. Prüfe auf account.xbox.com die Datenschutzeinstellung „Spiel- und App-Verlauf“ (auf „Jeder“) und melde dich ggf. auf xbl.io neu an.`
+            : `OpenXBL-Antwort enthält keine Titel-Liste (Aufbau: ${shape(response)}).`,
+        );
+      }
+      return importTitles(apiKey, xuid, alt, altFound, true);
+    }
+  }
+  return importTitles(apiKey, xuid, response, found, false);
+}
+
+async function importTitles(apiKey: string, xuid: string, response: unknown, found: Record<string, unknown>[], fallbackOnly: boolean) {
   // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen.
   // Diese Liste kann unvollständig sein – daher wird in diesem Fall nichts entfernt (nur ergänzt).
-  let fromFallback = false;
-  if (found.length === 0) {
+  let fromFallback = fallbackOnly;
+  if (found.length === 0 && !fallbackOnly) {
     const alt = await request(apiKey, "/achievements").catch(() => null);
     const altFound = alt ? findTitles(alt) : null;
     if (altFound?.length) {

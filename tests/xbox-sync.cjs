@@ -96,4 +96,28 @@ for (const [name, body] of Object.entries(truncated)) {
     await assert.rejects(syncXbox()); assert.deepEqual(ids(), ['1','2']);
   });
 }
+
+// Verpackte Fehlermeldung statt Liste (z. B. 72 Zeichen JSON-Text)
+function routes(map) {
+  global.fetch = async (url) => {
+    const p = new URL(url).pathname;
+    if (p in map) { const v = map[p]; if (v instanceof Error) throw v; return Response.json(v); }
+    if (p === '/v2/player/stats') return Response.json({users:[]});
+    throw new Error('unexpected fixture URL');
+  };
+}
+const upstreamErr = {code:200, content:JSON.stringify({code:'Forbidden', description:'Privacy settings deny access'})};
+test('shows upstream error and keeps entries when no source has a list', async () => {
+  reset(); routes({'/v2/player/titleHistory': upstreamErr, '/v2/player/titleHistory/123': upstreamErr, '/v2/achievements': upstreamErr});
+  await assert.rejects(syncXbox(), /Forbidden – Privacy settings deny access/);
+  assert.deepEqual(ids(), ['1','2']);
+});
+test('falls back to title history by XUID (authoritative, may prune)', async () => {
+  reset(); routes({'/v2/player/titleHistory': upstreamErr, '/v2/player/titleHistory/123': {code:200, content:{titles:[game('1'),game('3')]}}});
+  await syncXbox(); assert.deepEqual(ids(), ['1','3']);
+});
+test('falls back to achievements after error (never prunes)', async () => {
+  reset(); routes({'/v2/player/titleHistory': upstreamErr, '/v2/player/titleHistory/123': new Error('404'), '/v2/achievements': {titles:[game('3')]}});
+  await syncXbox(); assert.deepEqual(ids(), ['1','2','3']);
+});
 test.after(() => { db().close(); fs.rmSync(dir, {recursive:true, force:true}); });
