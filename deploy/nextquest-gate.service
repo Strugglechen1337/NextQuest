@@ -1,0 +1,22 @@
+[Unit]
+Description=NextQuest independent PIN gate
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/marcel/nextquest/deploy
+ExecStart=/home/marcel/adguard-learning/.venv/bin/python /home/marcel/nextquest/deploy/gate.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/marcel/nextquest/deploy/state
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=128M
+TasksMax=24
+
+[Install]
+WantedBy=default.target

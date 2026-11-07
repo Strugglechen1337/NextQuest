@@ -1,0 +1,26 @@
+[Unit]
+Description=NextQuest LAN authenticated reverse proxy
+After=network-online.target nextquest.service nextquest-gate.service
+Wants=network-online.target
+Requires=nextquest.service nextquest-gate.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/marcel/nextquest
+Environment=XDG_CONFIG_HOME=/home/marcel/nextquest/runtime/config
+Environment=XDG_DATA_HOME=/home/marcel/nextquest/runtime/data
+ExecStart=/home/marcel/nextquest/runtime/caddy run --config /home/marcel/nextquest/deploy/Caddyfile --adapter caddyfile
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/marcel/nextquest/runtime
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=192M
+TasksMax=64
+
+[Install]
+WantedBy=default.target

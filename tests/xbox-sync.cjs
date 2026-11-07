@@ -83,4 +83,17 @@ for (const [name, body] of Object.entries(wrapped)) {
     await syncXbox(); assert.deepEqual(ids(), ['1','3']);
   });
 }
+
+// Fortsetzungs-Token tief verschachtelt: niemals löschen
+const truncated = {
+  'nested pagingInfo in content': {code:200, content:{titles:[game('1')], pagingInfo:{continuationToken:'more'}}},
+  'token inside JSON text': {code:200, content:JSON.stringify({titles:[game('1')], pagingInfo:{continuationToken:'more'}})},
+  'token inside list wrapper': {code:200, content:[{titles:[game('1')], continuationToken:'more'}]},
+};
+for (const [name, body] of Object.entries(truncated)) {
+  test(`keeps entries when ${name}`, async () => {
+    reset(); responses(body, null);
+    await assert.rejects(syncXbox()); assert.deepEqual(ids(), ['1','2']);
+  });
+}
 test.after(() => { db().close(); fs.rmSync(dir, {recursive:true, force:true}); });

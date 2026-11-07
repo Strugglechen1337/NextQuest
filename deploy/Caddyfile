@@ -1,0 +1,26 @@
+{
+    admin off
+    auto_https off
+}
+http://192.168.2.213:7916 {
+    bind 192.168.2.213
+    route {
+        @gate path /_auth/*
+        handle @gate {
+            reverse_proxy 127.0.0.1:7917 {
+                header_up Host {http.request.host}
+                header_up X-Client-IP {client_ip}
+                header_up X-Original-Host {http.request.hostport}
+            }
+        }
+        handle {
+            forward_auth 127.0.0.1:7917 {
+                uri /_auth/verify
+                header_up Host {http.request.host}
+                header_up X-Client-IP {client_ip}
+                header_up X-Original-Host {http.request.hostport}
+            }
+            reverse_proxy 127.0.0.1:7918
+        }
+    }
+}

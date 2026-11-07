@@ -1,0 +1,11 @@
+# Lokale Serverbereitstellung
+
+Upstream-Stand: `4483706591640562fdec04033a40e014c3e45716` (main). Lokale Deploy-Dateien sind ein separater Commit. Der Server nutzt Node 22 und den Next.js-Standalone-Build; kein Container und keine globalen npm-Pakete.
+
+- App: `127.0.0.1:7918`, PIN-Gate: `127.0.0.1:7917`, Caddy: `192.168.2.213:7916`. UFW erlaubt ausschließlich das Heimnetz `192.168.2.0/24`. Keine Internet-Freigabe.
+- Gate nutzt denselben vorhandenen Cockpit-PIN-Hash, aber eine getrennte Sitzung und eigene Rate-Limit-Datenbank. URL: `http://192.168.2.213:7916/`.
+- HTTP verschlüsselt LAN-Verkehr nicht. PIN, Sitzungen und eingegebene Zugangsdaten können im LAN abgefangen oder verändert werden; Router-VPN verschlüsselt nicht zwingend die Strecke Router-Server. Bis eine vertrauenswürdige HTTPS-Verbindung bereitsteht keine sensiblen Plattform-Zugangsdaten eingeben. Die App speichert diese unverschlüsselt in SQLite, geschützt durch Benutzerrechte, und der normale Serverbackup enthält sie ebenfalls.
+- `systemctl --user status nextquest nextquest-gate nextquest-proxy`; Gesundheitsprüfung intern `curl http://127.0.0.1:7918/api/health`.
+- Die Server-Sicherung soll Quellcode einschließlich Git, Dienste, Datenbank (SQLite-Online-Snapshot), PIN-Limiter und Caddy-Binary beim nächsten regulären Lauf aufnehmen. `node_modules` und `.next` sind ausgeschlossen; nach Wiederherstellung unter Node 22 `npm ci --ignore-scripts`, `NEXT_TELEMETRY_DISABLED=1 npm run build`, `cp -a public .next/standalone/`, `mkdir -p .next/standalone/.next && cp -a .next/static .next/standalone/.next/`, danach Dienste starten. Eine Wiederherstellung wurde nicht getestet.
+- `scripts/update.sh` aus docs/HERMES.md ist nur für Docker vorgesehen und hier nicht aktiviert. Es fährt nach misslungener Datensicherung fort, kopiert die laufende SQLite-Datei und verwendet `git reset --hard`. Keine automatischen Updates einrichten; Updates nur geprüft mit konsistenter Sicherung und Rollbackstrategie. GitHub-Zugang läuft über kurzlebige repository-begrenzte Tokens, keine dauerhafte Credentials-Datei.
+- Gate-Implementierung wurde von lokalem `~/spoolman/gate.py` abgeleitet; Tests nutzen ausschließlich erfundene PIN-Werte. Keine produktiven Logins oder Plattform-Synchronisationen wurden automatisiert.
