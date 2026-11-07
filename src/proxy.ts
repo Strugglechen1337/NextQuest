@@ -21,5 +21,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // /api/health bleibt frei, damit Docker-Healthcheck und Updater ohne Passwort prüfen können
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"],
 };

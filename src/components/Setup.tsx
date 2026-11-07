@@ -50,7 +50,22 @@ export function Setup() {
           Zur Bibliothek →
         </Link>
       </div>
+      <VersionInfo />
     </div>
+  );
+}
+
+function VersionInfo() {
+  const [v, setV] = useState<{ version: string; commit: string; builtAt: string | null } | null>(null);
+  useEffect(() => {
+    api<{ version: string; commit: string; builtAt: string | null }>("/api/version").then(setV, () => {});
+  }, []);
+  if (!v) return null;
+  return (
+    <p className="text-center text-xs text-white/30">
+      NextQuest {v.version} · {v.commit}
+      {v.builtAt ? ` · gebaut ${fmtDate(v.builtAt)}` : ""}
+    </p>
   );
 }
 

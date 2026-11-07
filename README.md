@@ -38,11 +38,14 @@ docker compose up -d --build
 
 Danach im Browser `http://<server-ip>:3000` öffnen und unter **Einrichtung** die Zugänge eintragen.
 
-**Update:**
+**Update (automatisch, mit Sicherung und Rollback):**
 
 ```bash
-git pull && docker compose up -d --build
+scripts/update.sh           # Update einspielen, falls vorhanden
+scripts/update.sh --check   # nur prüfen
 ```
+
+Details für den Hermes-Bot (Exit-Codes, maschinenlesbare Ausgabe, Cron, Wiederherstellung): [docs/HERMES.md](docs/HERMES.md)
 
 **Wichtig:**
 - Alle Daten (Bibliothek, Zugangsdaten) liegen im Docker-Volume `nextquest-data` und bleiben bei Updates erhalten.

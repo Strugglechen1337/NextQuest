@@ -1,6 +1,10 @@
 services:
   nextquest:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        BUILT_AT: ${BUILT_AT:-}
     image: nextquest:latest
     container_name: nextquest
     restart: unless-stopped

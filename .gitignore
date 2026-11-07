@@ -40,6 +40,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# NextQuest-Datenbank (enth‰lt Zugangsdaten)
+# NextQuest-Datenbank (enth√§lt Zugangsdaten)
 /data/
 !.env.example
+
+# Arbeitsordner paralleler Agenten (Orca-Worktrees)
+/nq-*/
+
+# Backups und Status des Updaters
+/backups/
+/.update.lock/
+/.update-skip

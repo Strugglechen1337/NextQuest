@@ -15,6 +15,11 @@ RUN npm run build
 
 FROM node:22-slim AS run
 WORKDIR /app
+# Version für /api/version (setzt scripts/update.sh bzw. docker-compose.yml)
+ARG GIT_COMMIT=dev
+ARG BUILT_AT=""
+ENV NEXTQUEST_COMMIT=$GIT_COMMIT \
+    NEXTQUEST_BUILT_AT=$BUILT_AT
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_NO_WARNINGS=1 \
