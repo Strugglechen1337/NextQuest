@@ -35,9 +35,22 @@ function hue(title: string) {
   return h;
 }
 
-export function Cover({ src, title, className = "" }: { src: string | null; title: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+export function Cover({
+  src,
+  fallbacks = [],
+  title,
+  className = "",
+}: {
+  src: string | null;
+  /** Weitere Bildquellen, die der Reihe nach probiert werden, wenn ein Bild nicht lädt */
+  fallbacks?: string[];
+  title: string;
+  className?: string;
+}) {
+  const sources = [src, ...fallbacks].filter((s): s is string => !!s);
+  const [index, setIndex] = useState(0);
+  const current = sources[index];
+  if (!current) {
     const h = hue(title);
     return (
       <div
@@ -50,10 +63,13 @@ export function Cover({ src, title, className = "" }: { src: string | null; titl
   }
   return (
     <img
-      src={src}
+      key={current}
+      src={current}
       alt={title}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setIndex((i) => i + 1)}
+      // Platzhalter-Bilder (sehr klein) wie fehlende Bilder behandeln
+      onLoad={(e) => e.currentTarget.naturalWidth < 20 && setIndex((i) => i + 1)}
       className={`object-cover ${className}`}
     />
   );

@@ -17,6 +17,8 @@ export interface Game {
   title: string;
   igdbId: number | null;
   coverUrl: string | null;
+  /** Weitere Bildquellen, falls coverUrl nicht lädt */
+  coverFallbacks?: string[];
   rating: number | null;
   ratingCount: number | null;
   genres: string[];

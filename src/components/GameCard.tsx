@@ -33,7 +33,7 @@ export function GameCard({
         }`}
       >
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-white/5">
-          <Cover src={game.coverUrl} title={game.title} className="h-full w-full" />
+          <Cover src={game.coverUrl} fallbacks={game.coverFallbacks} title={game.title} className="h-full w-full" />
           {game.copies > 1 && (
             <span
               className="absolute left-2 top-2 rounded-md bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-black shadow"

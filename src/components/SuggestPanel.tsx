@@ -154,6 +154,7 @@ function SuggestionRow({
     >
       <Cover
         src={game.coverUrl}
+        fallbacks={game.coverFallbacks}
         title={game.title}
         className={`${big ? "h-24 w-16 @sm:h-28 @sm:w-20" : "h-20 w-14"} shrink-0 rounded-lg text-base`}
       />

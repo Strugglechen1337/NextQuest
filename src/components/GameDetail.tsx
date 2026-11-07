@@ -76,6 +76,7 @@ export function GameDetail({
         <div className="flex items-start gap-4 @lg:block">
           <Cover
             src={game.coverUrl}
+            fallbacks={game.coverFallbacks}
             title={game.title}
             className="aspect-[3/4] w-24 shrink-0 self-start rounded-xl @sm:w-28 @lg:w-40"
           />

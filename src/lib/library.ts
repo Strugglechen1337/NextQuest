@@ -62,6 +62,26 @@ function parseList(v: string | null): string[] {
   }
 }
 
+/**
+ * Alle bekannten Bildquellen eines Spiels in Reihenfolge: IGDB-Cover, Plattform-Cover,
+ * zuletzt das Steam-Querformat (gibt es auch für ältere Spiele ohne Hochformat-Bild).
+ * Die Oberfläche probiert sie nacheinander, falls ein Bild nicht lädt.
+ */
+function coverChain(primary: string | null, os: OwnershipRow[]): { coverUrl: string | null; coverFallbacks: string[] } {
+  const upgrade = (u: string) => (u.startsWith("http://") ? `https://${u.slice(7)}` : u);
+  const list = [
+    primary,
+    ...os.map((o) => o.cover_url),
+    ...os
+      .filter((o) => o.platform === "steam" && /^\d+$/.test(o.external_id))
+      .map((o) => `https://shared.steamstatic.com/store_item_assets/steam/apps/${o.external_id}/header.jpg`),
+  ]
+    .filter((u): u is string => !!u)
+    .map(upgrade);
+  const unique = [...new Set(list)];
+  return { coverUrl: unique[0] ?? null, coverFallbacks: unique.slice(1) };
+}
+
 export function listGames(): Game[] {
   const games = db().prepare("SELECT * FROM games").all() as unknown as GameRow[];
   const owns = db().prepare("SELECT * FROM ownerships").all() as unknown as OwnershipRow[];
@@ -85,7 +105,7 @@ export function listGames(): Game[] {
       id: g.id,
       title: g.title,
       igdbId: g.igdb_id,
-      coverUrl: g.cover_url ?? os.find((o) => o.cover_url)?.cover_url ?? null,
+      ...coverChain(g.cover_url, os),
       rating: g.rating,
       ratingCount: g.rating_count,
       genres: parseList(g.genres),
