@@ -42,6 +42,8 @@ interface GameRow {
   summary_de: string | null;
   summary_de_state: string | null;
   completed: number;
+  completed_at: string | null;
+  created_at: string | null;
   status: string | null;
   user_note: string | null;
   user_rating: number | null;
@@ -140,6 +142,8 @@ export function listGames(): Game[] {
       summaryDe: g.summary_de,
       summaryDeSource: descriptionSource(g.summary_de_state),
       completed: !!g.completed,
+      completedAt: g.completed_at ?? null,
+      createdAt: g.created_at ?? null,
       status: effectiveStatus(g.status, !!g.completed),
       userNote: g.user_note,
       userRating: g.user_rating,

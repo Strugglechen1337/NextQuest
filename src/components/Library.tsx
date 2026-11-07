@@ -19,6 +19,7 @@ import { AddGameDialog } from "./AddGameDialog";
 import { ContinueRow } from "./ContinueRow";
 import { GameCard } from "./GameCard";
 import { GameDetail } from "./GameDetail";
+import { GoalsHomeBanner } from "./GoalsHomeBanner";
 import { SuggestPanel } from "./SuggestPanel";
 import { Notice } from "./ui";
 
@@ -217,6 +218,12 @@ export function Library() {
           onClick={gamePassOn ? () => setOwnership("gamepass") : undefined}
         />
       </section>
+
+      <GoalsHomeBanner
+        goalsRaw={data.settings.goals}
+        games={games}
+        onOpenGame={(g) => setSelected(g.id)}
+      />
 
       <ContinueRow games={games} onOpen={(g) => setSelected(g.id)} />
 

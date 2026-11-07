@@ -8,6 +8,7 @@ import { formatMinutes } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
 import { platformsOf } from "./GameCard";
 import { GameDetail } from "./GameDetail";
+import { GoalsSection } from "./GoalsSection";
 import { Cover, Notice, PlatformPill } from "./ui";
 
 export function Stats() {
@@ -83,13 +84,20 @@ export function Stats() {
   return (
     <div className="min-w-0 max-w-full space-y-[var(--space-section)]">
       {/* Kopfbereich */}
-      <header className="flex flex-wrap items-end justify-between gap-2">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[clamp(1.25rem,2.2vw,1.65rem)] font-bold tracking-tight">Sammlungs-Statistik</h1>
           <p className="text-xs text-white/60 sm:text-sm">
-            Überblick über Spielzeit, Pile of Shame, Plattformen und Genres deiner Bibliothek
+            Überblick über Spielzeit, Pile of Shame, Ziele, Plattformen und Genres deiner Bibliothek
           </p>
         </div>
+        <Link
+          href="/stats/year"
+          className="inline-flex items-center gap-2 rounded-xl border border-violet-400/40 bg-gradient-to-r from-violet-500/25 to-emerald-500/20 px-3.5 py-2 text-xs font-bold text-white shadow-sm shadow-violet-500/15 transition hover:border-violet-400 hover:from-violet-500/35 hover:to-emerald-500/30 sm:text-sm"
+        >
+          <span>✨ Jahresrückblick (Wrapped)</span>
+          <span aria-hidden="true">→</span>
+        </Link>
       </header>
 
       {/* Kennzahlen */}
@@ -169,6 +177,14 @@ export function Stats() {
           </div>
         </div>
       </section>
+
+      {/* Abschnitt: Persönliche Spielziele */}
+      <GoalsSection
+        goalsRaw={data.settings.goals}
+        games={games}
+        onChanged={load}
+        onOpenGame={(id) => setSelectedId(id)}
+      />
 
       {/* Haupt-Diagramme: Plattformen & Genres */}
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
