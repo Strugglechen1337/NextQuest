@@ -140,9 +140,9 @@ function isGame(t: Record<string, unknown>): boolean {
   const media = String(t.mediaItemType ?? "").toLowerCase();
   if (kind === "game" || media.includes("game")) return true;
   if (kind === "app" || kind === "application" || media.includes("app")) return false;
-  // Keine Typ-Angabe: Titel mit Erfolgen/Gamerscore sind Spiele
+  // Keine eindeutige Typ-Angabe: nur Titel mit Erfolgen/Gamerscore gelten als Spiele (Apps haben keine)
   const ach = object(t.achievement);
-  return Number(ach.totalAchievements ?? ach.totalGamerscore ?? 0) > 0 || !kind;
+  return Number(ach.totalAchievements ?? ach.totalGamerscore ?? 0) > 0;
 }
 
 export async function syncXbox() {
@@ -151,16 +151,17 @@ export async function syncXbox() {
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
   let response = await request(apiKey, "/player/titleHistory");
   let data = payload(response);
-  let achievementsFallback = false;
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
-  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen
+  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen.
+  // Diese Liste kann unvollständig sein – daher wird in diesem Fall nichts entfernt (nur ergänzt).
+  let fromFallback = false;
   if (data.titles.length === 0) {
     const alt = await request(apiKey, "/achievements").catch(() => null);
     const altData = alt ? payload(alt) : {};
     if (Array.isArray(altData.titles) && altData.titles.length) {
       response = alt;
       data = altData;
-      achievementsFallback = true;
+      fromFallback = true;
     }
   }
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
@@ -181,9 +182,7 @@ export async function syncXbox() {
     );
   }
   const playtimes = new Map<string, number>();
-  let warning: string | undefined = achievementsFallback
-    ? "Die Erfolgsliste kann unvollständig sein; vorhandene Xbox-Einträge bleiben erhalten."
-    : undefined;
+  let warning: string | undefined;
   // 100 titles per request, never one request per game.
   for (let i = 0; i < games.length; i += 100) {
     try {
@@ -192,7 +191,7 @@ export async function syncXbox() {
       });
       for (const [id, value] of minutes(stats, xuid)) playtimes.set(id, value);
     } catch (e) {
-      warning = [warning, `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`].filter(Boolean).join(" ");
+      warning = `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`;
       break;
     }
   }
@@ -203,7 +202,8 @@ export async function syncXbox() {
         coverUrl: cover(game.displayImage), playtimeMin: playtimes.get(String(game.titleId)),
         lastPlayed: date && Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null });
     }
-    if (!achievementsFallback) pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
+    // Nur bei vollständiger Titel-Historie Einträge entfernen, nie bei der Ersatzquelle
+    if (!fromFallback) pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
     setSetting("xbox.lastSync", new Date().toISOString());
   });
   return { count: games.length, playtimeCount: playtimes.size, warning };
