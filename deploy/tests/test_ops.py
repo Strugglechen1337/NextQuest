@@ -3,10 +3,11 @@ import importlib.util
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 DEPLOY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DEPLOY))
@@ -38,7 +39,8 @@ class MonitorTests(unittest.TestCase):
     def test_main_sends_simulated_error_and_stays_quiet_when_normal(self):
         values = data()
         assess = monitor.assess
-        with patch.object(sys, 'argv', ['monitor.py']), patch.object(monitor, 'send') as sender:
+        with patch.object(sys, 'argv', ['monitor.py']), patch.object(monitor, 'send') as sender, \
+                patch.object(monitor, 'notify_availability'):
             with patch.object(monitor, 'assess', lambda: assess(values.__getitem__, lambda now: None, NOW)):
                 monitor.main()
                 sender.assert_not_called()
@@ -74,6 +76,72 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual([], self.check(values))
         values['/api/settings']['psn.refreshExpires'] = '2026-11-14T04:59:59Z'
         self.assertTrue(any('PlayStation' in x for x in self.check(values)))
+
+
+class AvailabilityTests(unittest.TestCase):
+    def test_normal_and_service_failure(self):
+        connection = MagicMock()
+        connection.getresponse.return_value.status = 302
+        good = subprocess.CompletedProcess([], 0, stdout='active\n')
+        bad = subprocess.CompletedProcess([], 0, stdout='inactive\n')
+        with patch.object(monitor.subprocess, 'run', side_effect=[good, good, good, good, good, bad]) as run, \
+                patch.object(monitor.http.client, 'HTTPConnection', return_value=connection):
+            self.assertEqual([], monitor.availability())
+            self.assertEqual(['nextquest-proxy: inactive'], monitor.availability())
+            self.assertEqual(6, run.call_count)
+            connection.request.assert_called_with('GET', '/')
+
+    def test_http_and_connection_failures(self):
+        connection = MagicMock()
+        good = subprocess.CompletedProcess([], 0, stdout='active\n')
+        with patch.object(monitor.subprocess, 'run', return_value=good), \
+                patch.object(monitor.http.client, 'HTTPConnection', return_value=connection):
+            connection.getresponse.return_value.status = 503
+            self.assertIn('HTTP 503', monitor.availability()[0])
+            connection.request.side_effect = ConnectionRefusedError(111, 'simuliert')
+            self.assertIn('ConnectionRefusedError, errno 111', monitor.availability()[0])
+            connection.request.side_effect = None
+            connection.getresponse.return_value.status = 200
+            self.assertEqual([], monitor.availability())
+
+    def test_systemctl_failure_reported(self):
+        connection = MagicMock()
+        connection.getresponse.return_value.status = 200
+        with patch.object(monitor.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, stdout='')), \
+                patch.object(monitor.http.client, 'HTTPConnection', return_value=connection):
+            alerts = monitor.availability()
+            self.assertEqual(3, len(alerts))
+            self.assertTrue(all('Statusabfrage fehlgeschlagen' in alert for alert in alerts))
+
+    def test_outage_only_once_and_recovery_once(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(monitor, 'STATE_DIR', Path(directory)), patch.object(monitor, 'send') as sender:
+            monitor.notify_availability(lambda: [])
+            sender.assert_not_called()
+            monitor.notify_availability(lambda: ['nextquest-proxy: inactive', 'Gate: Verbindungsfehler'])
+            monitor.notify_availability(lambda: ['Gate: HTTP 503'])
+            self.assertEqual(1, sender.call_count)
+            self.assertIn('nextquest-proxy: inactive', sender.call_args.args[0])
+            monitor.notify_availability(lambda: [])
+            monitor.notify_availability(lambda: [])
+            self.assertEqual(2, sender.call_count)
+            self.assertIn('wiederhergestellt', sender.call_args.args[0])
+
+    def test_delivery_failure_retried(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(monitor, 'STATE_DIR', Path(directory)), patch.object(monitor, 'send') as sender:
+            sender.side_effect = [RuntimeError('simuliert'), None]
+            with self.assertRaises(RuntimeError):
+                monitor.notify_availability(lambda: ['Ausfall'])
+            monitor.notify_availability(lambda: ['Ausfall'])
+            self.assertEqual(2, sender.call_count)
+
+    def test_cli_check_fails_on_outage(self):
+        with patch.object(sys, 'argv', ['monitor.py', '--check-availability']), \
+                patch.object(monitor, 'availability', return_value=['simulierter Ausfall']):
+            with self.assertRaises(SystemExit) as result:
+                monitor.main()
+            self.assertEqual(1, result.exception.code)
 
 
 class BackupTests(unittest.TestCase):

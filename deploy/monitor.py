@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-"""Read-only NextQuest checks; use the existing Hermes Telegram transport."""
+"""NextQuest checks; use the existing Hermes Telegram transport."""
 import datetime as dt
+import fcntl
+import http.client
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
+import tempfile
 import urllib.request
 
 from backup import BACKUPS, NAME
 
 BASE = os.environ.get('NEXTQUEST_URL', 'http://127.0.0.1:7918').rstrip('/')
+GATE_HOST = '192.168.2.213'
+GATE_PORT = 7916
+SERVICES = ('nextquest', 'nextquest-gate', 'nextquest-proxy')
+STATE_DIR = Path.home() / '.local/state/nextquest-ops'
 UTC = dt.timezone.utc
 
 
@@ -114,6 +122,68 @@ def assess(fetch=get_json, check_backup=backup_status, now=None):
     return list(dict.fromkeys(alerts))
 
 
+def availability():
+    alerts = []
+    for service in SERVICES:
+        try:
+            result = subprocess.run(['systemctl', '--user', 'show', service + '.service',
+                                     '--property=ActiveState', '--value'], capture_output=True,
+                                    text=True, timeout=10, check=False)
+            state = result.stdout.strip()
+            if result.returncode:
+                alerts.append(service + ': Statusabfrage fehlgeschlagen (systemctl Exit ' + str(result.returncode) + ')')
+            elif state != 'active':
+                alerts.append(service + ': ' + (state or 'Status fehlt'))
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            alerts.append(service + ': Statusabfrage fehlgeschlagen (' + type(exc).__name__ + ')')
+    connection = http.client.HTTPConnection(GATE_HOST, GATE_PORT, timeout=5)
+    try:
+        connection.request('GET', '/')
+        status = connection.getresponse().status
+        if status not in (200, 302):
+            alerts.append('Gate ' + GATE_HOST + ':' + str(GATE_PORT) + ': HTTP ' + str(status) + ' (erwartet 200 oder 302)')
+    except (OSError, http.client.HTTPException) as exc:
+        detail = type(exc).__name__
+        if isinstance(exc, OSError) and exc.errno is not None:
+            detail += ', errno ' + str(exc.errno)
+        if isinstance(exc, socket.timeout):
+            detail += ', Zeitüberschreitung'
+        alerts.append('Gate ' + GATE_HOST + ':' + str(GATE_PORT) + ': Verbindungsfehler (' + detail + ')')
+    finally:
+        connection.close()
+    return alerts
+
+
+def notify_availability(check=None):
+    # Serialize daily and frequent checks; persist only after confirmed delivery.
+    STATE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (STATE_DIR / 'availability.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        alerts = (check or availability)()
+        state_file = STATE_DIR / 'availability.json'
+        try:
+            state = json.loads(state_file.read_text())
+        except FileNotFoundError:
+            state = {'outage': False}
+        if not isinstance(state, dict) or not isinstance(state.get('outage'), bool):
+            raise ValueError('Ungültiger Überwachungszustand')
+        outage = bool(alerts)
+        if outage == state['outage']:
+            return
+        if outage:
+            send('NextQuest-Erreichbarkeit ausgefallen:\n' + '\n'.join('- ' + x for x in alerts))
+        else:
+            send('NextQuest-Erreichbarkeit wiederhergestellt: Alle drei Dienste aktiv und Gate antwortet.')
+        fd, temporary = tempfile.mkstemp(dir=STATE_DIR, prefix='.availability-')
+        try:
+            with os.fdopen(fd, 'w') as output:
+                json.dump({'outage': outage}, output)
+            os.replace(temporary, state_file)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+
 def send(text):
     scripts = os.environ.get('HERMES_SCRIPTS', str(Path.home() / '.hermes/scripts'))
     sys.path.insert(0, scripts)
@@ -136,8 +206,18 @@ def main():
     if sys.argv[1:] == ['--test-message']:
         send('NextQuest-Überwachung eingerichtet')
         return
+    if sys.argv[1:] == ['--check-availability']:
+        alerts = availability()
+        print('\n'.join(alerts) if alerts else 'Alle drei Dienste aktiv; Gate antwortet mit HTTP 200 oder 302.')
+        if alerts:
+            raise SystemExit(1)
+        return
+    if sys.argv[1:] == ['--availability']:
+        notify_availability()
+        return
     if sys.argv[1:]:
         raise SystemExit('Unbekannte Option')
+    notify_availability()
     alerts = assess()
     if alerts:
         send('NextQuest-Überwachung:\n' + '\n'.join('- ' + x for x in alerts)[:3500])
