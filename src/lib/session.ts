@@ -1,4 +1,5 @@
 import type { Game } from "./types";
+import { significantTags, timeClass } from "./session-learning";
 
 export interface SessionAssessment {
   length: "short" | "medium" | "long" | null;
@@ -56,6 +57,16 @@ export function assessSession(g: Game): SessionAssessment {
       : g.sessionPref === "medium" ? "Von dir als mittel markiert" : "Von dir als lang markiert",
     savePoints: false,
   };
+  if (g.learnedSessionMin) return {
+    length: timeClass(g.learnedSessionMin),
+    reason: `Du spielst das meist ~${g.learnedSessionMin} Min am Stück`,
+    savePoints,
+  };
+  const tags = significantTags(g.steamTags ?? []);
+  const shortTag = tags.find(t => /rogue[ -]?(like|lite)|^(arcade|short|casual|pvp|competitive|battle royale|party)$/i.test(t));
+  if (shortTag) return { length: "short", reason: `Kurze Runden möglich (Steam: ${shortTag})`, savePoints };
+  const longTag = tags.find(t => /^(story rich|open world|rpg|grand strategy|exploration|long)$/i.test(t));
+  if (longTag) return { length: "long", reason: `Längere Sessions (Steam: ${longTag})`, savePoints };
   const rogue = matches(/rogue[ -]?(like|lite)/i);
   const strong = profile.find((p) => /^(arcade|racing|sport|sports|fighting|card & board game|pinball|party|battle royale)$/i.test(p));
   const mmo = g.modes.some((m) => /massively|mmo/i.test(m)) || matches(/mmorpg|massively multiplayer/i);

@@ -1,0 +1,70 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const Module = require('node:module');
+const ts = require('typescript');
+const load = Module._load;
+Module._load = function(n,p,m) { return n === 'server-only' ? {} : load.call(this,n,p,m); };
+require.extensions['.ts'] = (m,f) => m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true,target:ts.ScriptTarget.ES2022}}).outputText,f);
+const {typicalSession, timeClass} = require('../src/lib/session-learning.ts');
+const rows = values => values.map(playtime_min => ({platform:'steam',playtime_min}));
+assert.equal(typicalSession(rows([0,20,60])),null);
+assert.equal(typicalSession(rows([0,20,60,120])),40);
+assert.equal(typicalSession(rows([0,20,60,120,620])),40);
+assert.equal(typicalSession(rows([0,20,60,120,200])),50);
+assert.equal(typicalSession(rows([100,100,90,100])),null);
+assert.deepEqual([45,46,120,121].map(timeClass),['short','medium','medium','long']);
+const {assessSession} = require('../src/lib/session.ts');
+const {suggestForTime} = require('../src/lib/suggest.ts');
+const base = {id:1,title:'fixture',genres:[],keywords:[],modes:[],owned:true,completed:false,playtimeMin:0,sessionPref:null};
+const tagged = (title,tags) => ({...base,title,steamTags:tags.map(([name,votes])=>({name,votes}))});
+assert.equal(assessSession(tagged('Hades',[['Roguelike',100],['RPG',80]])).length,'short');
+assert.equal(assessSession(tagged('Witcher 3',[['Story Rich',100],['Open World',80],['Casual',2]])).length,'long');
+assert.equal(assessSession(tagged('CoD',[['PvP',100],['Competitive',90]])).length,'short');
+assert.equal(assessSession({...base,learnedSessionMin:40}).length,'short');
+assert.equal(assessSession({...base,learnedSessionMin:40,sessionPref:'long'}).length,'long');
+const score = g => suggestForTime([g],30,false)[0].score;
+assert.equal(score({...base,timeFeedback:{short:-1}}),score(base)-60);
+assert.equal(score({...base,timeFeedback:{short:1}}),score(base)+10);
+assert.equal(score({...base,timeFeedback:{long:-1}}),score(base));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(),'nq-learning-'));
+process.env.DATA_DIR = dir;
+const {db} = require('../src/lib/db.ts');
+const {upsertOwnership,listGames} = require('../src/lib/library.ts');
+const d = db();
+for (const minutes of [0,20,20,60,120]) upsertOwnership({platform:'steam',externalId:'1',title:'fixture',playtimeMin:minutes});
+assert.equal(d.prepare('SELECT count(*) n FROM playtime_snapshots').get().n,4);
+assert.equal(listGames()[0].learnedSessionMin,40);
+assert.equal(d.prepare('PRAGMA quick_check').get().quick_check,'ok');
+d.close(); delete global.__nextquestDb;
+fs.rmSync(dir,{recursive:true,force:true});
+console.log('session median, outliers, tags, manual priority, feedback and snapshot persistence: ok');
+
+require('node:test')('SteamSpy enrichment tolerates errors, throttles and persists votes', async () => {
+  const tagsDir = fs.mkdtempSync(path.join(os.tmpdir(),'nq-tags-'));
+  process.env.DATA_DIR = tagsDir;
+  const good = upsertOwnership({platform:'steam',externalId:'1145360',title:'Hades'});
+  upsertOwnership({platform:'steam',externalId:'292030',title:'Witcher'});
+  const calls = [];
+  const originalFetch = global.fetch;
+  global.fetch = async url => {
+    calls.push({url:String(url),at:Date.now()});
+    if (String(url).includes('1145360')) return Response.json({tags:{Roguelike:100,RPG:5}});
+    throw new Error('fixture offline');
+  };
+  try {
+    const {steamTagsBatch} = require('../src/lib/steam-tags.ts');
+    await steamTagsBatch();
+    assert.equal(calls.length,2);
+    assert(calls[1].at-calls[0].at>=1050);
+    assert.equal(db().prepare('SELECT votes FROM steam_tags WHERE game_id=? AND name=?').get(good,'Roguelike').votes,100);
+    assert.equal(db().prepare('SELECT count(*) n FROM steam_tag_checks').get().n,2);
+    await steamTagsBatch();
+    assert.equal(calls.length,2);
+  } finally {
+    global.fetch = originalFetch;
+    db().close(); delete global.__nextquestDb;
+    fs.rmSync(tagsDir,{recursive:true,force:true});
+  }
+});

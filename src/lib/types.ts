@@ -13,6 +13,9 @@ export interface Ownership {
 export type SessionPreference = "short" | "medium" | "long";
 
 export interface Game {
+  learnedSessionMin?: number | null;
+  timeFeedback?: Partial<Record<SessionPreference, number>>;
+  steamTags?: { name: string; votes: number }[];
   id: number;
   title: string;
   igdbId: number | null;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { api } from "@/lib/client";
+import { timeClass } from "@/lib/session-learning";
 import { formatMinutes, randomPick, rerollForTime, suggestForTime, type Suggestion } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
 import { platformsOf } from "./GameCard";
@@ -24,12 +26,34 @@ export function SuggestPanel({
   const [results, setResults] = useState<Suggestion[] | null>(null);
   const [random, setRandom] = useState<Game | null>(null);
   const [rolls, setRolls] = useState(0);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [votes, setVotes] = useState<Record<number, Partial<Record<"short" | "medium" | "long", number>>>>({});
+  const withVotes = (list: Game[]) => list.map(g => ({ ...g, timeFeedback: { ...g.timeFeedback, ...votes[g.id] } }));
+  const vote = async (game: Game, value: number) => {
+    if (!minutes) return;
+    setFeedbackBusy(true);
+    setFeedbackError(null);
+    try {
+      await api(`/api/games/${game.id}/feedback`, { method: "POST", body: { minutes, value } });
+      const updated = { ...votes, [game.id]: { ...votes[game.id], [timeClass(minutes)]: value } };
+      setVotes(updated);
+      if (value < 0) setResults(current => {
+        const kept = (current ?? []).filter(s => s.game.id !== game.id);
+        const replacement = suggestForTime(games.map(g => ({ ...g, timeFeedback: { ...g.timeFeedback, ...updated[g.id] } })), minutes, includeGamePass, 0, null)
+          .find(s => s.game.id !== game.id && !kept.some(k => k.game.id === s.game.id));
+        return replacement ? [...kept, replacement] : kept;
+      });
+    } catch (e) { setFeedbackError((e as Error).message); }
+    finally { setFeedbackBusy(false); }
+  };
   // Bereits gezeigte Vorschläge – „Andere Vorschläge“ zeigt bevorzugt neue Spiele
   const [shown, setShown] = useState<Set<number>>(new Set());
   const [lastGames, setLastGames] = useState<Game[]>(games);
 
   if (lastGames !== games) {
     setLastGames(games);
+    setVotes({});
     if (minutes !== null && results !== null) {
       const next = suggestForTime(games, minutes, includeGamePass, 4);
       setResults(next);
@@ -47,13 +71,13 @@ export function SuggestPanel({
     setMinutes(m);
     setRandom(null);
     if (!reroll) {
-      const items = suggestForTime(games, m, includeGamePass, 4);
+      const items = suggestForTime(withVotes(games), m, includeGamePass, 4);
       setResults(items);
       setShown(new Set(items.map((s) => s.game.id)));
       setRolls(0);
       return;
     }
-    const { items, reset } = rerollForTime(games, m, includeGamePass, shown);
+    const { items, reset } = rerollForTime(withVotes(games), m, includeGamePass, shown);
     setResults(items);
     setShown((prev) => new Set([...(reset ? [] : prev), ...items.map((s) => s.game.id)]));
     setRolls((r) => (reset ? 0 : r + 1));
@@ -154,9 +178,16 @@ export function SuggestPanel({
               </div>
               <div className="grid grid-cols-1 gap-2 @2xl:grid-cols-2">
                 {results.map((s) => (
-                  <SuggestionRow key={s.game.id} game={s.game} reasons={s.reasons} onOpen={onOpen} />
+                  <div key={s.game.id} className="min-w-0 space-y-1">
+                    <SuggestionRow game={s.game} reasons={s.reasons} onOpen={onOpen} />
+                    <div className="flex flex-wrap gap-1 text-xs">
+                      <button type="button" className="btn-ghost min-h-9 px-2" disabled={feedbackBusy} onClick={() => vote(s.game, 1)}>👍 passt</button>
+                      <button type="button" className="btn-ghost min-h-9 px-2" disabled={feedbackBusy} onClick={() => vote(s.game, -1)}>👎 passt nicht für {formatMinutes(minutes)}</button>
+                    </div>
+                  </div>
                 ))}
               </div>
+              {feedbackError && <p role="alert" className="text-sm text-red-300">{feedbackError}</p>}
               <button type="button" className="btn-ghost mt-1 w-full @sm:w-auto" onClick={() => ask(minutes, true)}>
                 ↻ Andere Vorschläge
               </button>

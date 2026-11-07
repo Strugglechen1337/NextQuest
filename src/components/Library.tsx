@@ -217,7 +217,7 @@ export function Library() {
         games={suggestGames}
         includeGamePass={gamePassOn}
         activeGenres={genres}
-        onOpen={(g) => setSelected(g.id)}
+        onOpen={(g) => { void load(); setSelected(g.id); }}
       />
 
       {/* Filter: Handy / Tablet (< lg) */}

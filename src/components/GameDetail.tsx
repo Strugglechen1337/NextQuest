@@ -142,6 +142,11 @@ export function GameDetail({
               <option value="long">Lange Sessions</option>
             </select>
           </label>
+          {!!Object.keys(game.timeFeedback ?? {}).length && <div className="card space-y-2 p-3 text-sm">
+            <div className="text-white/65">Dein Zeit-Feedback</div>
+            <div className="flex flex-wrap gap-2">{Object.entries(game.timeFeedback ?? {}).map(([key, value]) => <span key={key}>{value === 1 ? "👍" : "👎"} {key === "short" ? "kurz (bis 45 Min)" : key === "medium" ? "mittel (bis 120 Min)" : "lang"}</span>)}</div>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => run(() => api(`/api/games/${game.id}/feedback`, { method: "DELETE" }))}>Zeit-Feedback zurücksetzen</button>
+          </div>}
 
           {(game.summaryDe || game.summary) && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summaryDe || game.summary}{!game.summaryDe && <span className="text-xs text-white/45"> (englisch)</span>}</p>}
           {game.summaryDe && game.summaryDeSource?.source === "wikipedia" && <p className="text-xs text-white/45"><a href={game.summaryDeSource.url} target="_blank" rel="noreferrer" className="underline">Quelle: Wikipedia</a> ? <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer" className="underline">CC BY-SA 4.0</a> ? gek?rzt</p>}

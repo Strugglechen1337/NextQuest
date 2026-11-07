@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { enrichBatch, igdbConfigured, refreshMetadata, resetNotFound } from "./igdb";
 import { descriptionsBatch } from "./descriptions";
+import { steamTagsBatch } from "./steam-tags";
 import { getSetting, setSetting } from "./settings";
 import { syncSteam } from "./steam";
 import { syncXbox } from "./xbox";
@@ -89,6 +90,10 @@ async function execute(job: Job) {
     }
   } catch (e) { job.errors[job.step] = errorText(e); }
   finally {
+    if (job.kind === "sync-all" || job.kind === "descriptions") {
+      job.step = "Steam-Tags";
+      try { await steamTagsBatch(); } catch (e) { job.errors["Steam-Tags"] = errorText(e); }
+    }
     job.endedAt = new Date().toISOString();
     try { setSetting("jobs.last", JSON.stringify(job)); }
     catch (e) { console.error("[NextQuest] Job-Ergebnis konnte nicht gespeichert werden", e); }
