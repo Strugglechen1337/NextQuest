@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type LibraryResponse } from "@/lib/client";
+import {
+  countGenres,
+  countPlaystyles,
+  matchesGenreFilter,
+  type CategoryCount,
+  type GenreCategory,
+  type PlaystyleCategory,
+} from "@/lib/genres";
 import { PLATFORM_ORDER, PLATFORMS, type PlatformId } from "@/lib/platforms";
 import { formatMinutes } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
@@ -74,12 +82,17 @@ export function Library() {
 
   const [q, setQ] = useState("");
   const [platforms, setPlatforms] = useState<PlatformId[]>([]);
+  const [genres, setGenres] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>("open");
   const [ownership, setOwnership] = useState<Ownership>("owned");
   const [duration, setDuration] = useState<Duration>("any");
   const [onlyDupes, setOnlyDupes] = useState(false);
   const [sort, setSort] = useState<Sort>("playtime");
   const [limit, setLimit] = useState(PAGE);
+
+  const toggleGenre = useCallback((label: string) => {
+    setGenres((prev) => (prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -91,8 +104,22 @@ export function Library() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Daten beim Start laden
+    /* eslint-disable react-hooks/set-state-in-effect -- Daten und optionale URL-Filter beim Start laden */
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("filter") === "1" || params.get("sheet") === "1") {
+      setFilterSheetOpen(true);
+    }
+    const urlGenres = params.get("genre") ?? params.get("genres");
+    if (urlGenres) {
+      setGenres(
+        urlGenres
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+    }
     load();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [load]);
 
   const games = useMemo(() => data?.games ?? [], [data]);
@@ -104,6 +131,7 @@ export function Library() {
     (duration !== "any" ? 1 : 0) +
     (sort !== "playtime" ? 1 : 0) +
     platforms.length +
+    genres.length +
     (onlyDupes ? 1 : 0);
 
   const resetFilters = () => {
@@ -112,6 +140,7 @@ export function Library() {
     setDuration("any");
     setSort("playtime");
     setPlatforms([]);
+    setGenres([]);
     setOnlyDupes(false);
   };
 
@@ -126,15 +155,23 @@ export function Library() {
       if (ownership === "gamepass" && !g.inGamePass) return false;
       if (onlyDupes && g.copies < 2) return false;
       if (platforms.length && !g.ownerships.some((o) => platforms.includes(o.platform))) return false;
+      if (genres.length && !matchesGenreFilter(g, genres)) return false;
       return dur.test(g.ttbNormally);
     });
     return sortGames(list, sort);
-  }, [games, q, status, ownership, onlyDupes, platforms, duration, sort]);
+  }, [games, q, status, ownership, onlyDupes, platforms, genres, duration, sort]);
 
   const presentPlatforms = useMemo(() => {
     const set = new Set(games.flatMap((g) => g.ownerships.map((o) => o.platform)));
     return PLATFORM_ORDER.filter((p) => set.has(p));
   }, [games]);
+
+  const presentGenres = useMemo(() => countGenres(games), [games]);
+  const presentPlaystyles = useMemo(() => countPlaystyles(games), [games]);
+  const suggestGames = useMemo(
+    () => (genres.length > 0 ? games.filter((g) => matchesGenreFilter(g, genres)) : games),
+    [games, genres],
+  );
 
   const toggleCompleted = async (g: Game) => {
     setData((d) =>
@@ -176,7 +213,12 @@ export function Library() {
         />
       </section>
 
-      <SuggestPanel games={games} includeGamePass={gamePassOn} onOpen={(g) => setSelected(g.id)} />
+      <SuggestPanel
+        games={suggestGames}
+        includeGamePass={gamePassOn}
+        activeGenres={genres}
+        onOpen={(g) => setSelected(g.id)}
+      />
 
       {/* Filter: Handy / Tablet (< lg) */}
       <section className="space-y-2.5 lg:hidden" aria-label="Suche und Filter">
@@ -338,6 +380,42 @@ export function Library() {
             {filtered.length} {filtered.length === 1 ? "Spiel" : "Spiele"}
           </span>
         </div>
+
+        {(presentGenres.length > 0 || presentPlaystyles.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="Genre und Spielweise filtern">
+            {presentGenres.map(({ label, count }) => {
+              const on = genres.includes(label);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`chip gap-1.5 ${on ? "chip-on" : ""}`}
+                  onClick={() => toggleGenre(label)}
+                >
+                  <span>{label}</span>
+                  <span className={`text-[11px] tabular-nums ${on ? "text-violet-200" : "text-white/45"}`}>{count}</span>
+                </button>
+              );
+            })}
+            {presentGenres.length > 0 && presentPlaystyles.length > 0 && (
+              <span className="mx-1 h-4 w-px bg-white/10" />
+            )}
+            {presentPlaystyles.map(({ label, count }) => {
+              const on = genres.includes(label);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`chip gap-1.5 ${on ? "chip-on" : ""}`}
+                  onClick={() => toggleGenre(label)}
+                >
+                  <span>{label}</span>
+                  <span className={`text-[11px] tabular-nums ${on ? "text-violet-200" : "text-white/45"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {stats!.pendingEnrich > 0 && data.igdb && (
@@ -347,6 +425,25 @@ export function Library() {
             Jetzt abrufen
           </Link>
         </Notice>
+      )}
+
+      {genres.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Aktive Genre-Filter">
+          {genres.map((g) => (
+            <button
+              key={g}
+              type="button"
+              className="chip chip-on gap-1.5"
+              onClick={() => toggleGenre(g)}
+              aria-label={`Genre-Filter ${g} entfernen`}
+            >
+              <span>{g}</span>
+              <span aria-hidden="true" className="text-violet-200">
+                ✕
+              </span>
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Raster */}
@@ -387,6 +484,10 @@ export function Library() {
         presentPlatforms={presentPlatforms}
         platforms={platforms}
         setPlatforms={setPlatforms}
+        presentGenres={presentGenres}
+        presentPlaystyles={presentPlaystyles}
+        genres={genres}
+        onToggleGenre={toggleGenre}
         onlyDupes={onlyDupes}
         setOnlyDupes={setOnlyDupes}
         activeFilterCount={activeFilterCount}
@@ -421,6 +522,10 @@ function FilterBottomSheet({
   presentPlatforms,
   platforms,
   setPlatforms,
+  presentGenres,
+  presentPlaystyles,
+  genres,
+  onToggleGenre,
   onlyDupes,
   setOnlyDupes,
   activeFilterCount,
@@ -441,6 +546,10 @@ function FilterBottomSheet({
   presentPlatforms: PlatformId[];
   platforms: PlatformId[];
   setPlatforms: React.Dispatch<React.SetStateAction<PlatformId[]>>;
+  presentGenres: CategoryCount<GenreCategory>[];
+  presentPlaystyles: CategoryCount<PlaystyleCategory>[];
+  genres: string[];
+  onToggleGenre: (label: string) => void;
   onlyDupes: boolean;
   setOnlyDupes: React.Dispatch<React.SetStateAction<boolean>>;
   activeFilterCount: number;
@@ -470,14 +579,14 @@ function FilterBottomSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Filter und Sortierung"
-        className="flex max-h-[min(92dvh,42rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/15 bg-[#11141d] shadow-2xl"
+        className="flex max-h-[min(92dvh,48rem)] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border-t border-white/15 bg-[#11141d] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-[#11141d]/95 px-4 py-2.5 backdrop-blur">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold">Filter & Sortierung</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-sm font-bold sm:text-base">Filter & Sortierung</h2>
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
                 activeFilterCount > 0 ? "bg-violet-500/25 text-violet-200" : "bg-white/10 text-white/60"
               }`}
             >
@@ -504,8 +613,8 @@ function FilterBottomSheet({
           </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex-1 space-y-3.5 overflow-y-auto p-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <label className="block space-y-1">
               <span className="text-xs font-medium text-white/60">Status</span>
               <select className="input" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
@@ -548,6 +657,54 @@ function FilterBottomSheet({
               </select>
             </label>
           </div>
+
+          {presentGenres.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-white/60">Genre</div>
+              <div className="flex flex-wrap gap-1.5">
+                {presentGenres.map(({ label, count }) => {
+                  const on = genres.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      className={`chip gap-1.5 ${on ? "chip-on" : ""}`}
+                      onClick={() => onToggleGenre(label)}
+                    >
+                      <span>{label}</span>
+                      <span className={`text-[11px] tabular-nums ${on ? "text-violet-200" : "text-white/45"}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {presentPlaystyles.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-white/60">Spielweise</div>
+              <div className="flex flex-wrap gap-1.5">
+                {presentPlaystyles.map(({ label, count }) => {
+                  const on = genres.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      className={`chip gap-1.5 ${on ? "chip-on" : ""}`}
+                      onClick={() => onToggleGenre(label)}
+                    >
+                      <span>{label}</span>
+                      <span className={`text-[11px] tabular-nums ${on ? "text-violet-200" : "text-white/45"}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-white/60">Plattformen</div>

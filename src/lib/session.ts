@@ -1,4 +1,4 @@
-﻿import type { Game } from "./types";
+import type { Game } from "./types";
 
 export interface SessionAssessment {
   length: "short" | "medium" | "long" | null;
@@ -16,7 +16,10 @@ type Matcher = (re: RegExp) => boolean;
 const hasMode = (g: Game, re: RegExp) => g.modes.some((m) => re.test(m));
 
 /** Koop-Signal: IGDB-Modus „Co-operative“ oder Koop-Schlagwörter. */
-function isCoop(g: Game, matches: Matcher): boolean {
+export function isCoop(
+  g: Game,
+  matches: Matcher = (re) => [...g.genres, ...(g.keywords ?? [])].some((p) => re.test(p)),
+): boolean {
   return hasMode(g, /co-?operative|co-?op/i) || matches(/\bco-?op\b|cooperative|co-operative/i);
 }
 
@@ -24,7 +27,10 @@ function isCoop(g: Game, matches: Matcher): boolean {
  * Echter Wettkampf-Mehrspieler (Matches, die nach Minuten vorbei sind)?
  * IGDB markiert auch reine Koop-Spiele mit „Multiplayer“, deshalb reicht der Modus allein nicht.
  */
-function isCompetitive(g: Game, matches: Matcher): boolean {
+export function isCompetitive(
+  g: Game,
+  matches: Matcher = (re) => [...g.genres, ...(g.keywords ?? [])].some((p) => re.test(p)),
+): boolean {
   // 1) Eindeutige Wettkampf-Signale
   if (hasMode(g, /battle royale/i)) return true;
   if (matches(/\bpvp\b|player vs\.? player|competitive|deathmatch|e-?sports?|ranked|arena shooter|hero shooter|match-based|moba|battle royale/i)) return true;
