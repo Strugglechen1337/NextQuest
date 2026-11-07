@@ -181,8 +181,16 @@ export async function syncXbox() {
         : "OpenXBL liefert keine gestarteten Spiele. Starte ein Xbox-Spiel und prüfe die Xbox-Datenschutzeinstellungen; vorhandene Einträge bleiben erhalten.",
     );
   }
+  // A filtered-out or malformed title is not evidence that an owned game vanished.
+  const hasValidId = (title: Record<string, unknown>) =>
+    (typeof title.titleId === "string" || (typeof title.titleId === "number" && Number.isSafeInteger(title.titleId))) &&
+    /^\d+$/.test(String(title.titleId));
+  const canPrune = !fromFallback && titles.every(hasValidId);
+  const seenTitleIds = new Set(titles.filter(hasValidId).map(t => String(t.titleId)));
   const playtimes = new Map<string, number>();
-  let warning: string | undefined;
+  let warning: string | undefined = !fromFallback && !canPrune
+    ? "Einige Titel haben keine gültige ID; vorhandene Xbox-Einträge bleiben erhalten."
+    : undefined;
   // 100 titles per request, never one request per game.
   for (let i = 0; i < games.length; i += 100) {
     try {
@@ -191,7 +199,7 @@ export async function syncXbox() {
       });
       for (const [id, value] of minutes(stats, xuid)) playtimes.set(id, value);
     } catch (e) {
-      warning = `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`;
+      warning = [warning, `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`].filter(Boolean).join(" ");
       break;
     }
   }
@@ -202,8 +210,8 @@ export async function syncXbox() {
         coverUrl: cover(game.displayImage), playtimeMin: playtimes.get(String(game.titleId)),
         lastPlayed: date && Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null });
     }
-    // Nur bei vollständiger Titel-Historie Einträge entfernen, nie bei der Ersatzquelle
-    if (!fromFallback) pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
+    // Only prune absent IDs when the title history has identifiable entries throughout.
+    if (canPrune) pruneOwnerships("xbox", seenTitleIds);
     setSetting("xbox.lastSync", new Date().toISOString());
   });
   return { count: games.length, playtimeCount: playtimes.size, warning };

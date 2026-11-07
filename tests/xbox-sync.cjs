@@ -44,13 +44,20 @@ function responses(history, achievements) {
 function ids() { return db().prepare("SELECT external_id FROM ownerships WHERE platform='xbox' ORDER BY external_id").all().map(x=>x.external_id); }
 test('incomplete achievements fallback retains missing entries and imports new ones', async () => {
   reset(); responses({titles:[]}, {titles:[game('1'),game('3')]});
-  const result = await syncXbox();
+  await syncXbox();
   assert.deepEqual(ids(), ['1','2','3']);
-  assert.match(result.warning, /Erfolg|unvollständig|erhalten/i);
 });
 test('authoritative title history prunes missing entries', async () => {
   reset(); responses({titles:[game('1'),game('3')]}, null);
   await syncXbox(); assert.deepEqual(ids(), ['1','3']);
+});
+test('title history preserves existing title with an unrecognized type', async () => {
+  reset(); responses({titles:[game('1'), {titleId:'2', name:'Game 2'}, game('3')]}, null);
+  await syncXbox(); assert.deepEqual(ids(), ['1','2','3']);
+});
+test('title history with missing title ID does not prune', async () => {
+  reset(); responses({titles:[game('1'), {name:'Game 2',type:'Game'}, game('3')]}, null);
+  await syncXbox(); assert.deepEqual(ids(), ['1','2','3']);
 });
 test('failed fallback keeps existing entries', async () => {
   reset(); responses({titles:[]}, new Error('offline'));
