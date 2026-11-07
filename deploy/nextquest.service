@@ -10,7 +10,9 @@ Environment=NEXT_TELEMETRY_DISABLED=1
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=7918
 Environment=DATA_DIR=%h/nextquest/data
+Environment=NEXTQUEST_UPDATE_DIR=%h/.local/state/nextquest/update
 EnvironmentFile=%h/.config/nextquest/deploy.env
+EnvironmentFile=-%h/.local/state/nextquest/update/app.env
 ExecStart=/usr/bin/node %h/nextquest/.next/standalone/server.js
 Restart=on-failure
 RestartSec=5
@@ -20,6 +22,7 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/nextquest/data
+ReadWritePaths=%h/.local/state/nextquest/update
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=768M
 TasksMax=64
