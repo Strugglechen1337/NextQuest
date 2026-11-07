@@ -31,14 +31,48 @@ function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
+// Current OpenXBL wraps the upstream payload in { code, content }; accept
+// direct payloads and data wrappers as well (including nested wrappers).
+function layers(value: unknown): unknown[] {
+  const result = [value];
+  for (let i = 0; i < 10; i++) {
+    const data = object(value);
+    const next = data.content ?? data.data;
+    if (next === null || typeof next !== "object") break;
+    result.push(next);
+    value = next;
+  }
+  return result;
+}
+
+function payload(value: unknown) {
+  return object(layers(value).at(-1));
+}
+
+function unexpectedFormat(response: unknown): never {
+  const keys = Object.keys(object(response)).join(", ") || "keine";
+  const message = `OpenXBL-Antwort hat unerwartetes Format (Schlüssel: ${keys}).`;
+  console.error(message);
+  throw new Error(message);
+}
+
+function xuidValue(value: unknown): string | undefined {
+  if (typeof value === "number" && !Number.isSafeInteger(value)) return;
+  if ((typeof value === "string" || typeof value === "number") && /^\d+$/.test(String(value)))
+    return String(value);
+}
+
 export async function testXbox(apiKey: string) {
-  const data = object(await request(apiKey, "/account"));
+  const response = await request(apiKey, "/account");
+  const data = payload(response);
   const profile = object(Array.isArray(data.profileUsers) ? data.profileUsers[0] : undefined);
   const settings = Array.isArray(profile.settings) ? profile.settings.map(object) : [];
-  const gamertag = settings.find(s => s.id === "Gamertag")?.value;
-  if (typeof profile.id !== "string" || !/^\d+$/.test(profile.id) || typeof gamertag !== "string")
-    throw new Error("OpenXBL liefert kein Xbox-Profil. Bitte auf xbl.io mit dem richtigen Microsoft-Konto erneut anmelden.");
-  return { xuid: profile.id, gamertag };
+  const gamertag = ["Gamertag", "ModernGamertag", "UniqueModernGamertag", "GameDisplayName"]
+    .map(id => settings.find(s => s.id === id)?.value)
+    .find((value): value is string => typeof value === "string" && !!value.trim());
+  const xuid = xuidValue(profile.id) ?? xuidValue(data.xuid) ?? xuidValue(profile.hostId);
+  if (!xuid) unexpectedFormat(response);
+  return { xuid, gamertag: gamertag ?? "Xbox-Konto" };
 }
 
 interface Title {
@@ -58,19 +92,30 @@ function cover(value?: string) {
   } catch { return null; }
 }
 
-// The batch response nests title groups under users[].statlistscollection[].
-function minutes(data: unknown, xuid: string) {
+// Current batches return statlistscollection[].stats[] with xuid/titleid on
+// each stat; older responses nest title groups under users[].
+function minutes(response: unknown, xuid: string) {
+  const data = payload(response);
   const result = new Map<string, number>();
-  const users = object(data).users;
+  const add = (stat: Record<string, unknown>, titleId: unknown, userId: unknown) => {
+    const value = stat.value;
+    if (String(userId) === xuid && stat.name === "MinutesPlayed" && /^\d+$/.test(String(titleId)) &&
+      (typeof value === "string" || typeof value === "number") && String(value).trim() &&
+      Number.isFinite(Number(value)) && Number(value) >= 0)
+      result.set(String(titleId), Math.floor(Number(value)));
+  };
+  if (!Array.isArray(data.users) && !Array.isArray(data.statlistscollection)) unexpectedFormat(response);
+  for (const list of Array.isArray(data.statlistscollection) ? data.statlistscollection.map(object) : []) {
+    for (const stat of Array.isArray(list.stats) ? list.stats.map(object) : [])
+      add(stat, stat.titleid ?? stat.titleId, stat.xuid);
+  }
+  const users = data.users;
   for (const user of Array.isArray(users) ? users.map(object) : []) {
     if (String(user.xuid) !== xuid) continue;
     const collections = user.statlistscollection;
     for (const group of Array.isArray(collections) ? collections.map(object) : []) {
       const stats = Array.isArray(group.stats) ? group.stats.map(object) : [];
-      const stat = stats.find(s => s.name === "MinutesPlayed");
-      const value = stat?.value;
-      if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value)) && Number(value) >= 0)
-        result.set(String(group.titleId), Math.floor(Number(value)));
+      for (const stat of stats) add(stat, stat.titleid ?? stat.titleId ?? group.titleId ?? group.titleid, user.xuid);
     }
   }
   return result;
@@ -80,10 +125,11 @@ export async function syncXbox() {
   const apiKey = getSetting("xbox.apiKey");
   const xuid = getSetting("xbox.xuid");
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
-  const data = object(await request(apiKey, "/player/titleHistory"));
-  if (!Array.isArray(data.titles)) throw new Error("OpenXBL liefert keine Titel-Historie. Prüfe deine Xbox-Datenschutzeinstellungen und die Anmeldung auf xbl.io.");
+  const response = await request(apiKey, "/player/titleHistory");
+  const data = payload(response);
+  if (!Array.isArray(data.titles)) unexpectedFormat(response);
   // Never prune from a truncated response: no continuation contract is documented.
-  if (object(data.pagingInfo).continuationToken || data.continuationToken)
+  if (layers(response).some(layer => object(object(layer).pagingInfo).continuationToken || object(layer).continuationToken))
     throw new Error("OpenXBL hat nur einen Teil der Titel-Historie geliefert. Die vorhandene Bibliothek bleibt erhalten; bitte später erneut versuchen.");
   const games = data.titles.map(object).filter(g =>
     g.type === "Game" && typeof g.name === "string" && g.name.trim() && /^\d+$/.test(String(g.titleId)),
