@@ -55,3 +55,10 @@ next-env.d.ts
 /deploy/__pycache__/
 /deploy/tests/__pycache__/
 /deploy/deploy.env
+
+# Server: gesicherte Builds und Python-Umgebungen des Update-Ablaufs
+/.next-*/
+.venv/
+deploy/.venv/
+deploy/_testdeps/
+__pycache__/
