@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Gesicherte Builds des Update-Ablaufs auf dem Server
+    ".next-*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
