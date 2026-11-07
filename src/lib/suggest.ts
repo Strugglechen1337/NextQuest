@@ -1,19 +1,5 @@
 import type { Game } from "./types";
-
-const SESSION_GENRES = [
-  "Roguelike",
-  "Racing",
-  "Sport",
-  "Fighting",
-  "Puzzle",
-  "Arcade",
-  "Card & Board Game",
-  "Pinball",
-  "Music",
-  "Platform",
-  "Party",
-];
-const LONG_GENRES = ["Role-playing (RPG)", "Open world", "Strategy", "Simulator", "Turn-based strategy (TBS)"];
+import { assessSession, hasMultiplayer } from "./session";
 
 export function formatMinutes(min: number | null | undefined): string {
   if (min === null || min === undefined) return "–";
@@ -33,8 +19,6 @@ export function isCandidate(g: Game, includeGamePass: boolean) {
   return !g.completed && (g.owned || (includeGamePass && g.inGamePass));
 }
 
-const has = (g: Game, list: string[]) => g.genres.some((x) => list.includes(x));
-
 /**
  * Bewertet Spiele danach, wie gut sie zur verfügbaren Zeit passen.
  * `jitter` mischt etwas Zufall hinein, damit „Neu würfeln“ andere Vorschläge bringt.
@@ -53,32 +37,30 @@ export function suggestForTime(games: Game[], minutes: number, includeGamePass: 
     const played = g.playtimeMin;
     const started = played > 0;
 
-    if (total) {
+    const session = assessSession(g);
+    const unreliableProgress = hasMultiplayer(g) && !!total && played >= total * 0.8;
+    const sessionFits = !g.sessionPref || (g.sessionPref === "short" || (g.sessionPref === "medium" ? minutes >= 60 : minutes >= 120));
+
+    if (total && !unreliableProgress && sessionFits && !(session.savePoints && minutes < 45)) {
       const remaining = Math.max(total - played, 0);
       if (!started && total <= minutes * 1.15) {
         score += 40;
-        reasons.push(`In ca. ${formatMinutes(total)} komplett durchspielbar`);
+        reasons.push(`Hauptstory laut IGDB: ca. ${formatMinutes(total)}`);
       } else if (started && remaining > 0 && remaining <= minutes * 1.15) {
         score += 38;
-        reasons.push(`Nur noch ca. ${formatMinutes(remaining)} bis zum Ende`);
-      } else if (minutes < 60 && total > 40 * 60 && !started) {
+        reasons.push(`Geschätzt noch ca. ${formatMinutes(remaining)} Hauptstory (Spielzeit-Abgleich)`);
+      } else if (!g.sessionPref && minutes < 60 && total > 40 * 60 && !started) {
         score -= 12;
       }
     }
 
-    if (has(g, SESSION_GENRES)) {
-      if (minutes <= 60) {
-        score += 25;
-        reasons.push("Perfekt für eine kurze Runde");
-      } else score += 6;
-    }
-
-    if (has(g, LONG_GENRES)) {
-      if (minutes < 45) score -= 18;
-      else if (minutes >= 120) {
-        score += 16;
-        reasons.push("Ideal für eine lange Session");
-      }
+    reasons.push(session.reason);
+    if (session.length === "short") score += minutes <= 60 ? 25 : 6;
+    if (session.length === "medium") score += minutes >= 60 ? 16 : -12;
+    if (session.length === "long") score += minutes < 45 ? -24 : minutes >= 120 ? 20 : -6;
+    if (session.savePoints && minutes < 45) {
+      score -= 20;
+      reasons.push("Möglicherweise Speichern nur an Speicherpunkten – plane mehr Zeit ein");
     }
 
     if (started && (!total || played < total)) {

@@ -22,12 +22,12 @@ export interface LibraryResponse {
 }
 
 /** Ruft IGDB stapelweise auf, bis alle Spiele angereichert sind. */
-export async function runEnrich(onProgress: (done: number, remaining: number) => void, retry = false) {
+export async function runEnrich(onProgress: (done: number, remaining: number) => void, retry: boolean | "refresh" = false) {
   let done = 0;
   let first = true;
   for (;;) {
     const r = await api<{ processed: number; remaining: number }>(
-      `/api/sync/${retry && first ? "igdb-retry" : "igdb"}`,
+      `/api/sync/${first && retry ? (retry === "refresh" ? "igdb-refresh" : "igdb-retry") : "igdb"}`,
       { body: {} },
     );
     first = false;
