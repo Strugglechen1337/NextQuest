@@ -32,8 +32,9 @@ export function AddGameDialog({
     setError(null);
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (busy || (!meta && !title.trim())) return;
     setBusy(true);
     setError(null);
     try {
@@ -51,15 +52,33 @@ export function AddGameDialog({
   };
 
   return (
-    <Modal open={open} onClose={onClose}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Spiel hinzufügen"
+      footer={
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost flex-1 sm:flex-initial" onClick={onClose}>
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            className="btn-primary flex-1 sm:flex-initial"
+            disabled={busy || (!meta && !title.trim())}
+          >
+            Hinzufügen
+          </button>
+        </div>
+      }
+    >
       <form onSubmit={submit} className="space-y-4">
-        <h2 className="text-lg font-bold">Spiel hinzufügen</h2>
-        <p className="text-sm text-white/60">
+        <p className="text-sm text-white/65">
           Für Plattformen ohne Schnittstelle (z. B. Switch, Ubisoft) oder Spiele, die fehlen.
         </p>
 
-        <label className="block space-y-1">
-          <span className="text-xs text-white/50">Plattform</span>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-white/60">Plattform</span>
           <select className="input" value={platform} onChange={(e) => setPlatform(e.target.value as PlatformId)}>
             {PLATFORM_ORDER.filter((p) => PLATFORMS[p].manual).map((p) => (
               <option key={p} value={p}>
@@ -69,8 +88,8 @@ export function AddGameDialog({
           </select>
         </label>
 
-        <div className="space-y-1">
-          <span className="text-xs text-white/50">Spiel</span>
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-white/60">Spiel</span>
           {igdb ? (
             <>
               <IgdbPicker initial="" onPick={setMeta} selectedId={meta?.igdbId} />
@@ -84,15 +103,15 @@ export function AddGameDialog({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Titel des Spiels"
               />
-              <div className="text-xs text-white/40">
+              <div className="text-xs text-white/45">
                 Tipp: Mit eingerichtetem IGDB-Zugang bekommst du Suche, Cover und Spieldauer automatisch.
               </div>
             </>
           )}
         </div>
 
-        <label className="block space-y-1">
-          <span className="text-xs text-white/50">Bisherige Spielzeit in Stunden (optional)</span>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-white/60">Bisherige Spielzeit in Stunden (optional)</span>
           <input
             className="input"
             inputMode="decimal"
@@ -103,14 +122,6 @@ export function AddGameDialog({
         </label>
 
         {error && <div className="text-sm text-red-300">{error}</div>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>
-            Abbrechen
-          </button>
-          <button className="btn-primary" disabled={busy || (!meta && !title.trim())}>
-            Hinzufügen
-          </button>
-        </div>
       </form>
     </Modal>
   );

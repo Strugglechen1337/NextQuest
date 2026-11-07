@@ -3,6 +3,10 @@
 :root {
   --background: #0b0d14;
   --foreground: #e8eaf2;
+  --space-page-x: clamp(0.75rem, 2.5vw, 2.25rem);
+  --space-page-y: clamp(1rem, 2.2vw, 1.75rem);
+  --space-section: clamp(1rem, 2vw, 1.5rem);
+  --grid-gap: clamp(0.5rem, 1.1vw, 0.875rem);
   color-scheme: dark;
 }
 
@@ -13,31 +17,84 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.85em;
+  color: #ddd6fe;
+}
+
+.site-header {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.app-container {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 110rem;
+  margin-inline: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-left: calc(clamp(0.875rem, 2.5vw, 2.25rem) + env(safe-area-inset-left, 0px));
+  padding-right: calc(clamp(0.875rem, 2.5vw, 2.25rem) + env(safe-area-inset-right, 0px));
+}
+
+.game-grid {
+  display: grid;
+  gap: var(--grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(clamp(8.25rem, calc(8.5vw + 4.25rem), 11.25rem), 1fr));
+}
+
+.stats-grid {
+  display: grid;
+  gap: clamp(0.4rem, 1vw, 0.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(clamp(8rem, calc(10vw + 2.75rem), 12rem), 1fr));
 }
 
 @utility input {
-  @apply w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-white/30 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/20;
+  @apply w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-base outline-none transition placeholder:text-white/35 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-400/25 md:text-sm;
+}
+
+.input.w-auto {
+  width: auto;
 }
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility btn-primary {
-  @apply btn bg-violet-500 text-white hover:bg-violet-400;
+  @apply btn bg-violet-500 text-white shadow-sm shadow-violet-500/20 hover:bg-violet-400 active:bg-violet-600;
 }
 @utility btn-ghost {
-  @apply btn border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white;
+  @apply btn border border-white/10 bg-white/5 text-white/85 hover:bg-white/10 hover:text-white active:bg-white/15;
 }
 @utility btn-danger {
-  @apply btn border border-red-400/30 text-red-300 hover:bg-red-500/10;
+  @apply btn border border-red-400/30 text-red-300 hover:bg-red-500/10 active:bg-red-500/20;
 }
 
 @utility chip {
-  @apply cursor-pointer rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-white/70 transition hover:border-white/30 hover:text-white;
+  @apply inline-flex cursor-pointer items-center justify-center rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-white/75 transition hover:border-white/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80;
 }
 @utility chip-on {
   @apply border-violet-400/70 bg-violet-500/20 text-white;
@@ -49,4 +106,82 @@ body {
 
 select.input option {
   background: #11141d;
+}
+
+/* Touch devices & narrow screens: minimum 44px touch targets & 16px input font size */
+@media (pointer: coarse), (hover: none), (max-width: 767px) {
+  .input {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger {
+    min-height: 2.75rem;
+  }
+  .chip {
+    min-height: 2.75rem;
+    padding-inline: 0.875rem;
+  }
+}
+
+/* Card completion checkmark: always visible on touch devices & mobile viewports; on hover-capable PC only on hover/focus */
+.card-check-incomplete {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+  .card-check-incomplete {
+    opacity: 0;
+  }
+  .group:hover .card-check-incomplete,
+  .card-check-incomplete:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* Hide scrollbars on horizontal chip strips while keeping scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Landscape mobile (short height): show top nav & hide bottom tab bar to save vertical space */
+@media (max-width: 767px) and (min-height: 480px) {
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  .desktop-top-nav {
+    display: none;
+  }
+  .main-with-bottom-nav {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px), (max-height: 479px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+  .desktop-top-nav {
+    display: flex;
+  }
+  .main-with-bottom-nav {
+    padding-bottom: max(var(--space-page-y), env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -27,38 +27,38 @@ export function Step({
 }) {
   return (
     <section id={id} className="card scroll-mt-20 overflow-hidden">
-      <div className="flex items-center gap-4 border-b border-white/10 p-5">
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-3.5 sm:gap-4 sm:p-5">
         <div
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-bold ${
-            ok ? "bg-emerald-500 text-black" : "bg-white/10 text-white/70"
+            ok ? "bg-emerald-500 text-black" : "bg-white/10 text-white/75"
           }`}
         >
           {ok ? "✓" : n}
         </div>
-        <div className="min-w-0">
-          <h2 className="font-semibold">{title}</h2>
-          <p className="text-sm text-white/50">{subtitle}</p>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[clamp(0.95rem,1.3vw,1.05rem)] font-semibold leading-snug break-words">{title}</h2>
+          <p className="text-xs text-white/55 break-words sm:text-sm">{subtitle}</p>
         </div>
         {ok && (
-          <span className="ml-auto rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-300">
+          <span className="ml-auto shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
             Verbunden
           </span>
         )}
       </div>
-      <div className="space-y-4 p-5">{children}</div>
+      <div className="space-y-4 p-3.5 sm:p-5">{children}</div>
     </section>
   );
 }
 
 export function Guide({ steps }: { steps: ReactNode[] }) {
   return (
-    <ol className="space-y-2 text-sm text-white/70">
+    <ol className="space-y-2.5 text-sm leading-relaxed text-white/75">
       {steps.map((s, i) => (
-        <li key={i} className="flex gap-3">
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-500/25 text-[11px] font-bold text-violet-200">
+        <li key={i} className="flex gap-2.5 sm:gap-3">
+          <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-500/25 text-[11px] font-bold text-violet-200">
             {i + 1}
           </span>
-          <span>{s}</span>
+          <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{s}</span>
         </li>
       ))}
     </ol>
@@ -79,8 +79,8 @@ export function Field({
   secret?: boolean;
 }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-xs text-white/50">{label}</span>
+    <label className="block min-w-0 space-y-1">
+      <span className="text-xs font-medium text-white/60">{label}</span>
       <input
         className="input font-mono"
         type={secret ? "password" : "text"}
@@ -95,7 +95,12 @@ export function Field({
 }
 
 export const A = ({ href, children }: { href: string; children: ReactNode }) => (
-  <a href={href} target="_blank" rel="noreferrer" className="text-violet-300 underline hover:text-violet-200">
+  <a
+    href={href}
+    target="_blank"
+    rel="noreferrer"
+    className="text-violet-300 underline hover:text-violet-200 break-words [overflow-wrap:anywhere]"
+  >
     {children}
   </a>
 );

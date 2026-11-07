@@ -37,48 +37,59 @@ export function SuggestPanel({
   };
 
   return (
-    <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-gradient-to-r from-violet-500/15 to-emerald-500/10 p-4">
-        <div className="mr-2">
-          <div className="font-semibold">Was spiele ich jetzt?</div>
-          <div className="text-xs text-white/50">Wie viel Zeit hast du gerade?</div>
+    <section className="@container card min-w-0 max-w-full overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-3 border-b border-white/10 bg-gradient-to-r from-violet-500/15 to-emerald-500/10 p-3.5 @3xl:flex-row @3xl:flex-wrap @3xl:items-center @3xl:p-4">
+        <div className="mr-2 min-w-0 shrink-0">
+          <div className="text-[clamp(0.95rem,1.2vw,1.05rem)] font-semibold">Was spiele ich jetzt?</div>
+          <div className="text-xs text-white/55">Wie viel Zeit hast du gerade?</div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+
+        <div className="no-scrollbar flex w-full min-w-0 max-w-full items-center gap-1.5 overflow-x-auto py-0.5 @3xl:w-auto @3xl:flex-wrap">
           {QUICK.map((m) => (
-            <button key={m} className={`chip ${minutes === m ? "chip-on" : ""}`} onClick={() => ask(m)}>
+            <button
+              key={m}
+              type="button"
+              className={`chip shrink-0 whitespace-nowrap ${minutes === m ? "chip-on" : ""}`}
+              onClick={() => ask(m)}
+            >
               {m < 60 ? `${m} Min` : `${m / 60} Std`}
             </button>
           ))}
         </div>
-        <form
-          className="flex items-center gap-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const m = Number(custom);
-            if (m > 0) ask(m);
-          }}
-        >
-          <input
-            className="input w-24 py-1.5"
-            inputMode="numeric"
-            placeholder="Minuten"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
-          />
-          <button className="btn-ghost py-1.5">Los</button>
-        </form>
-        <div className="ml-auto">
-          <button className="btn-primary" onClick={roll}>
+
+        <div className="flex flex-col gap-2 @sm:flex-row @sm:items-center @3xl:ml-auto">
+          <form
+            className="flex items-center gap-1.5 @sm:flex-1 @3xl:flex-initial"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const m = Number(custom);
+              if (m > 0) ask(m);
+            }}
+          >
+            <input
+              className="input min-w-0 flex-1 py-1.5 @sm:w-28 @sm:flex-initial"
+              inputMode="numeric"
+              aria-label="Zeit in Minuten eingeben"
+              placeholder="Minuten"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
+            />
+            <button type="submit" className="btn-ghost shrink-0 py-1.5">
+              Los
+            </button>
+          </form>
+
+          <button type="button" className="btn-primary w-full shrink-0 @sm:w-auto" onClick={roll}>
             🎲 Zufallsspiel
           </button>
         </div>
       </div>
 
       {random && (
-        <div className="p-4">
+        <div className="p-3.5 @3xl:p-4">
           <SuggestionRow game={random} reasons={["Zufällig aus deinen offenen Spielen"]} onOpen={onOpen} big />
           <div className="mt-3 flex gap-2">
-            <button className="btn-ghost" onClick={roll}>
+            <button type="button" className="btn-ghost w-full @sm:w-auto" onClick={roll}>
               🎲 Nochmal würfeln
             </button>
           </div>
@@ -86,21 +97,23 @@ export function SuggestPanel({
       )}
 
       {results && minutes && (
-        <div className="space-y-2 p-4">
+        <div className="space-y-2.5 p-3.5 @3xl:p-4">
           {results.length === 0 ? (
-            <div className="text-sm text-white/60">Keine offenen Spiele gefunden. Füge Spiele hinzu oder lade die Demo.</div>
+            <div className="text-sm text-white/60">
+              Keine offenen Spiele gefunden. Füge Spiele hinzu oder lade die Demo.
+            </div>
           ) : (
             <>
-              <div className="text-sm text-white/60">
+              <div className="text-sm text-white/65">
                 Vorschläge für <b className="text-white">{formatMinutes(minutes)}</b>
-                {rolls > 0 && <span className="text-white/40"> · neu gemischt</span>}
+                {rolls > 0 && <span className="text-white/45"> · neu gemischt</span>}
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 @2xl:grid-cols-2">
                 {results.map((s) => (
                   <SuggestionRow key={s.game.id} game={s.game} reasons={s.reasons} onOpen={onOpen} />
                 ))}
               </div>
-              <button className="btn-ghost mt-1" onClick={() => ask(minutes, true)}>
+              <button type="button" className="btn-ghost mt-1 w-full @sm:w-auto" onClick={() => ask(minutes, true)}>
                 ↻ Andere Vorschläge
               </button>
             </>
@@ -124,24 +137,29 @@ function SuggestionRow({
 }) {
   return (
     <button
+      type="button"
       onClick={() => onOpen(game)}
-      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-2 text-left transition hover:border-violet-400/50"
+      className="@container flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-left transition hover:border-violet-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80"
     >
       <Cover
         src={game.coverUrl}
         title={game.title}
-        className={`${big ? "h-28 w-20" : "h-20 w-14"} shrink-0 rounded-lg text-base`}
+        className={`${big ? "h-24 w-16 @sm:h-28 @sm:w-20" : "h-20 w-14"} shrink-0 rounded-lg text-base`}
       />
       <div className="min-w-0 flex-1 space-y-1">
-        <div className={`truncate font-semibold ${big ? "text-lg" : ""}`}>{game.title}</div>
+        <div className={`truncate font-semibold ${big ? "text-base @sm:text-lg" : "text-sm @sm:text-base"}`}>
+          {game.title}
+        </div>
         <div className="flex flex-wrap gap-1">
           {platformsOf(game).map((p) => (
             <PlatformPill key={p} platform={p} />
           ))}
         </div>
-        <ul className="text-xs text-white/60">
+        <ul className="space-y-0.5 text-xs text-white/65">
           {reasons.slice(0, 2).map((r) => (
-            <li key={r}>• {r}</li>
+            <li key={r} className="truncate">
+              • {r}
+            </li>
           ))}
         </ul>
       </div>
