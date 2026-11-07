@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch for NextQuest update requests
+
+[Path]
+PathExists=%h/.local/state/nextquest/update/request.json
+PathChanged=%h/.local/state/nextquest/update/request.json
+Unit=nextquest-update.service
+
+[Install]
+WantedBy=default.target

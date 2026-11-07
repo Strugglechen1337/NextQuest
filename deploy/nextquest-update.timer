@@ -1,0 +1,11 @@
+[Unit]
+Description=NextQuest daily automatic update
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+Persistent=true
+AccuracySec=1s
+Unit=nextquest-update-auto.service
+
+[Install]
+WantedBy=timers.target
