@@ -42,8 +42,13 @@ function layers(value: unknown): unknown[] {
     if (typeof next === "string") {
       try { next = JSON.parse(next); } catch { break; }
     }
-    // Liste direkt im Inhalt → als { titles } behandeln
-    if (Array.isArray(next)) next = { titles: next };
+    if (Array.isArray(next)) {
+      // Liste mit einer Hülle darin (z. B. [{ xuid, titles: [...] }]) → Hülle auspacken,
+      // sonst ist die Liste selbst die Titel-Liste
+      const first = object(next[0]);
+      const isWrapper = next.length === 1 && ("titles" in first || "content" in first || "profileUsers" in first);
+      next = isWrapper ? first : { titles: next };
+    }
     if (next === null || typeof next !== "object") break;
     result.push(next);
     value = next;
@@ -175,9 +180,10 @@ export async function syncXbox() {
   if (!games.length) {
     // Diagnose ohne Inhalte: Anzahl und vorkommende Typ-Angaben
     const kinds = [...new Set(titles.map(t => String(t.type ?? t.mediaItemType ?? t.titleType ?? "ohne Typ")))].slice(0, 6);
+    const fields = Object.keys(titles[0] ?? {}).slice(0, 12).join(", ") || "keine";
     throw new Error(
       titles.length
-        ? `OpenXBL liefert ${titles.length} Titel, aber keiner wurde als Spiel erkannt (Typen: ${kinds.join(", ")}).`
+        ? `OpenXBL liefert ${titles.length} Titel, aber keiner wurde als Spiel erkannt (Typen: ${kinds.join(", ")}; Felder: ${fields}).`
         : "OpenXBL liefert keine gestarteten Spiele. Starte ein Xbox-Spiel und prüfe die Xbox-Datenschutzeinstellungen; vorhandene Einträge bleiben erhalten.",
     );
   }
