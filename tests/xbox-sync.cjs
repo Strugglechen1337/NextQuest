@@ -68,6 +68,16 @@ test('truncated fallback keeps existing entries', async () => {
   await assert.rejects(syncXbox()); assert.deepEqual(ids(), ['1','2']);
 });
 
+// Synthetic composition of a supported wrapper and the existing paging marker;
+// not a captured OpenXBL response.
+test('wrapped title history with continuation never prunes', async () => {
+  reset();
+  const inner = {titles:[game('1'),game('3')], pagingInfo:{continuationToken:'more'}};
+  responses({code:200, content:[JSON.stringify(inner)]}, null);
+  await assert.rejects(syncXbox(), /nur einen Teil/);
+  assert.deepEqual(ids(), ['1','2']);
+});
+
 // Verpackungsvarianten der OpenXBL-Antwort
 const wrapped = {
   'code/content object': {code:200, content:{xuid:'123', titles:[game('1'),game('3')]}},
@@ -83,4 +93,26 @@ for (const [name, body] of Object.entries(wrapped)) {
     await syncXbox(); assert.deepEqual(ids(), ['1','3']);
   });
 }
+
+const partial = {titles:[game('1'),game('3')], pagingInfo:{continuationToken:'more'}};
+const partialWrappers = {
+  'object': {code:200, content:partial},
+  'JSON text': {code:200, content:JSON.stringify(partial)},
+  'single-item list': {code:200, content:[partial]},
+  'list of JSON texts': {code:200, content:[JSON.stringify(partial)]},
+  'double-encoded JSON text': {code:200, content:JSON.stringify(JSON.stringify(partial))},
+  'result wrapper': {result:partial},
+};
+for (const [name, body] of Object.entries(partialWrappers)) {
+  test(`rejects continuation in ${name}`, async () => {
+    reset(); responses(body, null);
+    await assert.rejects(syncXbox(), /nur einen Teil/);
+    assert.deepEqual(ids(), ['1','2']);
+  });
+}
+test('wrapped truncated fallback retains existing titles', async () => {
+  reset(); responses({titles:[]}, partialWrappers['list of JSON texts']);
+  await assert.rejects(syncXbox(), /nur einen Teil/);
+  assert.deepEqual(ids(), ['1','2']);
+});
 test.after(() => { db().close(); fs.rmSync(dir, {recursive:true, force:true}); });

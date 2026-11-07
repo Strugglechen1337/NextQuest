@@ -181,6 +181,23 @@ function findTitles(value: unknown, depth = 0): Record<string, unknown>[] | null
   return null;
 }
 
+// Use the same bounded recursive traversal as the title parser so a supported
+// wrapper cannot hide a pagination marker from the fail-closed check.
+function hasContinuation(value: unknown, depth = 0): boolean {
+  if (depth > 8) return false;
+  if (typeof value === "string") {
+    const parsed = parseJsonText(value);
+    return parsed !== undefined && hasContinuation(parsed, depth + 1);
+  }
+  if (Array.isArray(value)) return value.some(item => hasContinuation(item, depth + 1));
+  if (value !== null && typeof value === "object") {
+    const o = object(value);
+    if (o.continuationToken || object(o.pagingInfo).continuationToken) return true;
+    return Object.values(o).some(item => hasContinuation(item, depth + 1));
+  }
+  return false;
+}
+
 /** Beschreibt den Aufbau einer Antwort ohne Inhalte (nur Schlüssel, Typen, Längen) – für Fehlermeldungen. */
 function shape(value: unknown, depth = 0): string {
   if (depth > 3) return "…";
@@ -222,7 +239,7 @@ export async function syncXbox() {
     }
   }
   // Never prune from a truncated response: no continuation contract is documented.
-  if (layers(response).some(layer => object(object(layer).pagingInfo).continuationToken || object(layer).continuationToken))
+  if (hasContinuation(response))
     throw new Error("OpenXBL hat nur einen Teil der Titel-Historie geliefert. Die vorhandene Bibliothek bleibt erhalten; bitte später erneut versuchen.");
   const titles = found;
   const games = titles.filter(g =>
