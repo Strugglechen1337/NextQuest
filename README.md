@@ -5,6 +5,8 @@ Deine gesamte Spielesammlung an einem Ort – und die Antwort auf die Frage: **�
 ## Ziele
 
 - Bibliotheken aus Steam, Xbox (inkl. Game Pass), PlayStation, GOG, Epic, Ubisoft und Switch zusammenführen
+- **Sammlungsübersicht:** Welche Spiele besitze ich überhaupt – auf allen Plattformen zusammen
+- **Mehrfachbesitz:** Ein Spiel, das ich auf mehreren Plattformen habe, erscheint nur einmal – mit Badge (z. B. `×2`) und Plattform-Icons, wo ich es besitze. Filter „Nur doppelte Spiele“. Abgleich über die IGDB-ID, damit unterschiedliche Store-Namen (z. B. „GOTY Edition“) trotzdem erkannt werden
 - Jedes Spiel mit Cover, eigener Spielzeit, Spieldauer (Time to Beat) und Beliebtheit
 - Filtern & Sortieren nach Spielzeit, Dauer, Beliebtheit, Plattform, Game Pass
 - 🎲 Zufallsvorschlag
