@@ -88,11 +88,11 @@ class UpdateTests(unittest.TestCase):
             shutil.rmtree(args[-1])
         if args == ['npm', 'test'] and self.fail_test:
             raise RuntimeError('Tests fehlgeschlagen')
-        if args == ['systemctl', '--user', 'start', 'nextquest.service'] and self.shrink:
+        if args[:4] == ['systemctl', '--user', 'start', 'nextquest.service'] and self.shrink:
             with sqlite3.connect(self.db) as con:
                 con.execute('DELETE FROM games')
             self.shrink = False
-        if args == ['systemctl', '--user', 'start', 'nextquest.service'] and self.health_failure_permanent:
+        if args[:4] == ['systemctl', '--user', 'start', 'nextquest.service'] and self.health_failure_permanent:
             starts = sum(call == tuple(args) for call in self.calls)
             if starts == 2:
                 self.health_failure_permanent = False
@@ -159,6 +159,15 @@ class UpdateTests(unittest.TestCase):
         self.assertIn('verschoben', status['message'])
         self.assertEqual([30] * 60, self.sleeps)
         self.assertFalse(self.calls)
+
+    def test_start_includes_gate_and_proxy(self):
+        # Der Heimnetz-Zugang hängt per Requires= an der App und muss nach jedem Neustart mitstarten.
+        self.execute()
+        starts = [c for c in self.calls if c[:3] == ('systemctl', '--user', 'start')]
+        self.assertTrue(starts)
+        for call in starts:
+            self.assertIn('nextquest-gate.service', call)
+            self.assertIn('nextquest-proxy.service', call)
 
     def test_disabled_auto_is_silent(self):
         self.enabled = False

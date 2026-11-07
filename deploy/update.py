@@ -87,7 +87,12 @@ class Updater:
         return self.run(['git', *args], cwd=self.root)
 
     def service(self, action):
-        self.run(['systemctl', '--user', action, 'nextquest.service'])
+        # nextquest-proxy hängt per Requires= an der App: Ein Stopp der App stoppt den
+        # Heimnetz-Zugang mit. Beim Start deshalb immer alle drei Dienste starten.
+        units = ['nextquest.service']
+        if action == 'start':
+            units += ['nextquest-gate.service', 'nextquest-proxy.service']
+        self.run(['systemctl', '--user', action, *units])
 
     def set_commit(self, sha):
         self.atomic_write(self.directory / 'app.env', 'NEXTQUEST_COMMIT=' + sha + '\n')
