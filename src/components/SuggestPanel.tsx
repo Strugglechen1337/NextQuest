@@ -11,10 +11,12 @@ const QUICK = [15, 30, 60, 90, 120, 180];
 export function SuggestPanel({
   games,
   includeGamePass,
+  activeGenres = [],
   onOpen,
 }: {
   games: Game[];
   includeGamePass: boolean;
+  activeGenres?: string[];
   onOpen: (g: Game) => void;
 }) {
   const [minutes, setMinutes] = useState<number | null>(null);
@@ -24,6 +26,22 @@ export function SuggestPanel({
   const [rolls, setRolls] = useState(0);
   // Bereits gezeigte Vorschläge – „Andere Vorschläge“ zeigt bevorzugt neue Spiele
   const [shown, setShown] = useState<Set<number>>(new Set());
+  const [lastGames, setLastGames] = useState<Game[]>(games);
+
+  if (lastGames !== games) {
+    setLastGames(games);
+    if (minutes !== null && results !== null) {
+      const next = suggestForTime(games, minutes, includeGamePass, 4);
+      setResults(next);
+      setShown(new Set(next.map((s) => s.game.id)));
+      setRolls(0);
+    }
+    if (random !== null) {
+      setRandom(games.some((g) => g.id === random.id) ? random : randomPick(games, includeGamePass));
+    }
+  }
+
+  const genreHint = activeGenres.length > 0 ? `Nur ${activeGenres.join(", ")}` : null;
 
   const ask = (m: number, reroll = false) => {
     setMinutes(m);
@@ -51,7 +69,14 @@ export function SuggestPanel({
     <section className="@container card min-w-0 max-w-full overflow-hidden">
       <div className="flex min-w-0 flex-col gap-3 border-b border-white/10 bg-gradient-to-r from-violet-500/15 to-emerald-500/10 p-3.5 @3xl:flex-row @3xl:flex-wrap @3xl:items-center @3xl:p-4">
         <div className="mr-2 min-w-0 shrink-0">
-          <div className="text-[clamp(0.95rem,1.2vw,1.05rem)] font-semibold">Was spiele ich jetzt?</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-[clamp(0.95rem,1.2vw,1.05rem)] font-semibold">Was spiele ich jetzt?</div>
+            {genreHint && (
+              <span className="rounded-full border border-violet-400/40 bg-violet-500/20 px-2 py-0.5 text-xs font-medium text-violet-200">
+                {genreHint}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-white/55">Wie viel Zeit hast du gerade?</div>
         </div>
 
@@ -98,7 +123,12 @@ export function SuggestPanel({
 
       {random && (
         <div className="p-3.5 @3xl:p-4">
-          <SuggestionRow game={random} reasons={["Zufällig aus deinen offenen Spielen"]} onOpen={onOpen} big />
+          <SuggestionRow
+            game={random}
+            reasons={[genreHint ? `Zufällig aus deinen offenen Spielen (${genreHint})` : "Zufällig aus deinen offenen Spielen"]}
+            onOpen={onOpen}
+            big
+          />
           <div className="mt-3 flex gap-2">
             <button type="button" className="btn-ghost w-full @sm:w-auto" onClick={roll}>
               🎲 Nochmal würfeln
@@ -111,12 +141,15 @@ export function SuggestPanel({
         <div className="space-y-2.5 p-3.5 @3xl:p-4">
           {results.length === 0 ? (
             <div className="text-sm text-white/60">
-              Keine offenen Spiele gefunden. Füge Spiele hinzu oder lade die Demo.
+              {genreHint
+                ? `Keine offenen Spiele gefunden (${genreHint}).`
+                : "Keine offenen Spiele gefunden. Füge Spiele hinzu oder lade die Demo."}
             </div>
           ) : (
             <>
               <div className="text-sm text-white/65">
                 Vorschläge für <b className="text-white">{formatMinutes(minutes)}</b>
+                {genreHint && <span className="text-violet-300"> · {genreHint}</span>}
                 {rolls > 0 && <span className="text-white/45"> · neu gemischt</span>}
               </div>
               <div className="grid grid-cols-1 gap-2 @2xl:grid-cols-2">
