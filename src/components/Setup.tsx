@@ -9,6 +9,7 @@ import { EpicStep } from "./setup/EpicStep";
 import { GogStep } from "./setup/GogStep";
 import { Notice } from "./ui";
 import { PlayStationStep } from "./setup/PlayStationStep";
+import { Automation } from "./setup/Automation";
 
 export function Setup() {
   const [data, setData] = useState<LibraryResponse | null>(null);
@@ -44,6 +45,7 @@ export function Setup() {
       </header>
 
       <IgdbStep data={data} reload={load} />
+      <Automation />
       <SteamStep data={data} reload={load} />
       <GamePassStep data={data} reload={load} />
       <XboxStep data={data} reload={load} />
@@ -189,6 +191,7 @@ function IgdbStep({ data, reload }: StepProps) {
       </button>
       {progress && (
         <div className="space-y-1">
+          <p className="text-sm text-white/65">Läuft auf dem Server – du kannst die Seite schließen.</p>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full bg-violet-500 transition-all"

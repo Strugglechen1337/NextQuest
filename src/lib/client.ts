@@ -21,30 +21,31 @@ export interface LibraryResponse {
   igdb: boolean;
 }
 
-/** Ruft IGDB stapelweise auf, bis alle Spiele angereichert sind. */
-export async function runEnrich(onProgress: (done: number, remaining: number) => void, retry: boolean | "refresh" = false) {
-  let done = 0;
-  let first = true;
+/** Starts a server job; closing this page only stops progress polling. */
+export async function runJob(kind: import("./job-types").JobKind, onProgress: (done: number, remaining: number) => void) {
+  const job = await api<import("./job-types").Job>("/api/jobs", { body: { kind } });
   for (;;) {
-    const r = await api<{ processed: number; remaining: number }>(
-      `/api/sync/${first && retry ? (retry === "refresh" ? "igdb-refresh" : "igdb-retry") : "igdb"}`,
-      { body: {} },
-    );
-    first = false;
-    done += r.processed;
-    onProgress(done, r.remaining);
-    if (r.remaining === 0 || r.processed === 0) return done;
+    const status = await api<import("./job-types").JobsStatus>("/api/jobs");
+    const current = status.running?.id === job.id ? status.running : status.last?.id === job.id ? status.last : null;
+    if (current) {
+      onProgress(current.done, current.remaining);
+      if (current.endedAt) {
+        const errors = Object.entries(current.errors).map(([name, error]) => `${name}: ${error}`);
+        if (errors.length || current.note) throw new Error([...errors, current.note].filter(Boolean).join(" · "));
+        return current.done;
+      }
+    }
+    // A completed job can be superseded by another browser before our next poll.
+    if (!current && status.last && status.last.startedAt > job.startedAt) return job.done;
+    if (!current && !status.running) throw new Error("Der Server wurde neu gestartet. Bereits gespeicherte Schritte bleiben erhalten; bitte den Job erneut starten.");
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
-/** Lädt deutsche Texte und stoppt bei Drosselung bis zum nächsten manuellen Aufruf. */
-export async function runDescriptions(onProgress: (done: number, remaining: number) => void) {
-  let done = 0;
-  for (;;) {
-    const r = await api<{ processed: number; remaining: number; rateLimited: boolean }>("/api/sync/descriptions", { body: {} });
-    done += r.processed;
-    onProgress(done, r.remaining);
-    if (r.rateLimited) throw new Error("Steam-Anfragelimit erreicht. Bereits geladene Texte sind gespeichert. Bitte in mindestens fünf Minuten erneut starten.");
-    if (!r.remaining || !r.processed) return done;
-  }
+export function runEnrich(onProgress: (done: number, remaining: number) => void, retry: boolean | "refresh" = false) {
+  return runJob(retry === "refresh" ? "enrich-refresh" : retry ? "enrich-retry" : "enrich", onProgress);
+}
+
+export function runDescriptions(onProgress: (done: number, remaining: number) => void) {
+  return runJob("descriptions", onProgress);
 }
