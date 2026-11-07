@@ -1,3 +1,4 @@
+import { syncXbox } from "@/lib/xbox";
 import { handle } from "@/lib/api";
 import { syncGamePass } from "@/lib/gamepass";
 import { enrichBatch, resetNotFound } from "@/lib/igdb";
@@ -23,6 +24,15 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]"
         setSetting("steam.steamId", null);
         setSetting("steam.lastSync", null);
         deletePlatform("steam");
+        return { ok: true };
+      case "xbox":
+        return syncXbox();
+      case "xbox-disconnect":
+        setSetting("xbox.apiKey", null);
+        setSetting("xbox.xuid", null);
+        setSetting("xbox.gamertag", null);
+        setSetting("xbox.lastSync", null);
+        deletePlatform("xbox");
         return { ok: true };
       default:
         throw new Error("Unbekannte Quelle");
