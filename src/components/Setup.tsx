@@ -10,6 +10,7 @@ import { GogStep } from "./setup/GogStep";
 import { Notice } from "./ui";
 import { PlayStationStep } from "./setup/PlayStationStep";
 import { Automation } from "./setup/Automation";
+import { Updates } from "./setup/Updates";
 
 export function Setup() {
   const [data, setData] = useState<LibraryResponse | null>(null);
@@ -44,6 +45,7 @@ export function Setup() {
         </div>
       </header>
 
+      <Updates />
       <IgdbStep data={data} reload={load} />
       <Automation />
       <SteamStep data={data} reload={load} />

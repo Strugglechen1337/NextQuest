@@ -9,12 +9,13 @@ export async function GET() {
   return handle(() => publicSettings());
 }
 
-const EDITABLE: SettingKey[] = ["gamepass.enabled", "gamepass.catalogs", "gamepass.market", "auto.enabled", "auto.time", "goals"];
+const EDITABLE: SettingKey[] = ["gamepass.enabled", "gamepass.catalogs", "gamepass.market", "auto.enabled", "auto.time", "update.auto", "goals"];
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Record<string, unknown>;
   return handle(() => {
     if ("auto.time" in body && !validAutoTime(body["auto.time"] as string | null)) throw new Error("Uhrzeit muss HH:MM sein.");
+    if ("update.auto" in body && !["0", "1"].includes((body["update.auto"] as string) ?? "")) throw new Error("Ungültiger Update-Schalter.");
     if ("auto.enabled" in body && !["0", "1"].includes((body["auto.enabled"] as string) ?? "")) throw new Error("Ungültiger Automatik-Schalter.");
     if ("goals" in body && body.goals !== null && body.goals !== "") {
       body.goals = validateGoalsJson(body.goals);
