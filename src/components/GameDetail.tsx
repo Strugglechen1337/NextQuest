@@ -144,6 +144,7 @@ export function GameDetail({
           </label>
 
           {(game.summaryDe || game.summary) && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summaryDe || game.summary}{!game.summaryDe && <span className="text-xs text-white/45"> (englisch)</span>}</p>}
+          {game.summaryDe && game.summaryDeSource?.source === "wikipedia" && <p className="text-xs text-white/45"><a href={game.summaryDeSource.url} target="_blank" rel="noreferrer" className="underline">Quelle: Wikipedia</a> ? <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer" className="underline">CC BY-SA 4.0</a> ? gek?rzt</p>}
 
           <div>
             <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Wo du es hast</div>

@@ -3,6 +3,7 @@ import { db } from "./db";
 import { igdbConfigured, igdbToSteam } from "./igdb";
 import { getSetting, setSetting } from "./settings";
 
+import { playstationDescription, wikipediaDescription, type DescriptionSource } from "./description-sources";
 import htmlEntities from "./html-entities.json";
 const entities: Record<string, string> = htmlEntities;
 
@@ -14,19 +15,22 @@ export function descriptionText(html: string): string {
   }).replace(/\s+/g, " ").trim();
 }
 
-interface Pending { id: number; igdb_id: number | null; steam: string[]; products: string[]; fingerprint: string }
+interface Pending { id: number; title: string; playstation: string[]; igdb_id: number | null; steam: string[]; products: string[]; fingerprint: string }
 
 // Persist the checked source IDs rather than a permanent notfound flag: later
 // imports or an IGDB match automatically make previously missing games eligible.
 function pendingGames(): Pending[] {
-  const games = db().prepare("SELECT id, igdb_id, summary_de_state FROM games WHERE summary_de IS NULL OR summary_de = ''").all() as unknown as { id: number; igdb_id: number | null; summary_de_state: string | null }[];
-  const owns = db().prepare("SELECT game_id, platform, external_id FROM ownerships WHERE platform IN ('steam', 'gamepass') ORDER BY external_id").all() as unknown as { game_id: number; platform: string; external_id: string }[];
+  const games = db().prepare("SELECT id, title, igdb_id, summary_de_state FROM games WHERE summary_de IS NULL OR summary_de = ''").all() as unknown as { id: number; title: string; igdb_id: number | null; summary_de_state: string | null }[];
+  const owns = db().prepare("SELECT game_id, platform, external_id FROM ownerships WHERE platform IN ('steam', 'gamepass', 'playstation') ORDER BY external_id").all() as unknown as { game_id: number; platform: string; external_id: string }[];
   return games.flatMap(g => {
     const os = owns.filter(o => o.game_id === g.id);
     const steam = os.filter(o => o.platform === "steam" && /^\d+$/.test(o.external_id)).map(o => o.external_id);
     const products = os.filter(o => o.platform === "gamepass" && /^[A-Z0-9]{12}$/i.test(o.external_id)).map(o => o.external_id);
-    const fingerprint = JSON.stringify([steam, products, igdbConfigured() ? g.igdb_id : null]);
-    return g.summary_de_state === fingerprint ? [] : [{ ...g, steam, products, fingerprint }];
+    const playstation = os.filter(o => o.platform === "playstation").map(o => o.external_id);
+    const fingerprint = JSON.stringify(["v2", steam, products, playstation, g.title, igdbConfigured() ? g.igdb_id : null]);
+    let checked = g.summary_de_state;
+    try { checked = JSON.parse(checked ?? "null")?.fingerprint ?? checked; } catch { /* legacy state */ }
+    return checked === fingerprint ? [] : [{ ...g, steam, products, playstation, fingerprint }];
   });
 }
 
@@ -47,9 +51,9 @@ async function loadBatch(limit: number) {
   const ids = pending.filter(g => !g.steam.length && g.igdb_id).map(g => g.igdb_id!);
   const steamMap = igdbConfigured() ? await igdbToSteam(ids) : new Map<number, string[]>();
   const fallback: Pending[] = [];
-  const save = (g: Pending, text: string) => {
+  const save = (g: Pending, text: string, source?: DescriptionSource) => {
     db().prepare("UPDATE games SET summary_de = ?, summary_de_state = ? WHERE id = ? AND (summary_de IS NULL OR summary_de = '')")
-      .run(text || null, g.fingerprint, g.id);
+      .run(text || null, JSON.stringify({ fingerprint: g.fingerprint, ...source }), g.id);
     processed++;
     if (text) matched++;
   };
@@ -71,7 +75,7 @@ async function loadBatch(limit: number) {
       if (data[id]?.success) text = descriptionText(data[id].data?.short_description ?? "");
       if (text) break;
     }
-    if (text || !g.products.length) save(g, text);
+    if (text) save(g, text, { source: "steam" });
     else fallback.push(g);
   }
   const productIds = [...new Set(fallback.flatMap(g => g.products))];
@@ -88,6 +92,13 @@ async function loadBatch(limit: number) {
       texts.set(p.ProductId, short || (long.length > 700 ? `${long.slice(0, 697)}…` : long));
     }
   }
-  for (const g of fallback) save(g, g.products.map(id => texts.get(id)).find(Boolean) ?? "");
+  for (const g of fallback) {
+    const microsoft = g.products.map(id => texts.get(id)).find(Boolean);
+    if (microsoft) { save(g, microsoft, { source: "microsoft" }); continue; }
+    const playstation = await playstationDescription(g.playstation, descriptionText);
+    if (playstation) { save(g, playstation, { source: "playstation" }); continue; }
+    const wiki = await wikipediaDescription(g.title, g.igdb_id, descriptionText);
+    save(g, wiki?.text ?? "", wiki?.source);
+  }
   return result();
 }

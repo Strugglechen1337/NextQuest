@@ -248,3 +248,14 @@ export function refreshMetadata() {
 export function resetNotFound() {
   db().prepare("UPDATE games SET enrich_state = 'pending' WHERE enrich_state = 'notfound'").run();
 }
+/** Explicit Wikipedia/Wikidata links for a known IGDB identity, without title search. */
+export async function igdbWikipediaLinks(id: number): Promise<string[]> {
+  if (!igdbConfigured()) return [];
+  const rows = await query<{ url?: string }[]>("websites", `fields url; where game = ${id}; limit 100;`);
+  return rows.flatMap(row => {
+    try {
+      const url = new URL(row.url ?? "");
+      return /^([a-z-]+\.wikipedia\.org|www\.wikidata\.org)$/.test(url.hostname) ? [url.href] : [];
+    } catch { return []; }
+  });
+}

@@ -64,7 +64,7 @@ test('Microsoft batches products, truncates long description, and retries missin
   upsertOwnership({platform:'gamepass',externalId:'9AAAAAAA0002',title:'B'});
   const absent=upsertOwnership({platform:'gamepass',externalId:'9AAAAAAA0003',title:'C'});
   let calls=0;
-  global.fetch=async url=>{calls++;assert.match(url,/market=DE&languages=de-de/);return Response.json({Products:[
+  global.fetch=async url=>{if(!url.includes('displaycatalog')) return Response.json({});calls++;assert.match(url,/market=DE&languages=de-de/);return Response.json({Products:[
     {ProductId:'9AAAAAAA0001',LocalizedProperties:[{ShortDescription:'<p>Deutsches Spiel</p>'}]},
     {ProductId:'9AAAAAAA0002',LocalizedProperties:[{ProductDescription:'Eine Welt '.repeat(100)}]},
   ]});};
@@ -79,9 +79,39 @@ test('merge transfers source German text and keeps populated target',()=>{
   reset();const a=upsertOwnership({platform:'steam',externalId:'1',title:'A'});
   const b=upsertOwnership({platform:'steam',externalId:'2',title:'B'});
   db().prepare('UPDATE games SET summary_de=? WHERE id=?').run('Deutsch',a);
-  mergeGames(a,b);assert.equal(listGames()[0].summaryDe,'Deutsch');
+  db().prepare('UPDATE games SET summary_de_state=? WHERE id=?').run(JSON.stringify({source:'wikipedia',url:'https://de.wikipedia.org/wiki/A'}),a);
+  mergeGames(a,b);assert.equal(listGames()[0].summaryDe,'Deutsch');assert.equal(listGames()[0].summaryDeSource.source,'wikipedia');
   const c=upsertOwnership({platform:'steam',externalId:'3',title:'C'});
   db().prepare('UPDATE games SET summary_de=? WHERE id=?').run('Anderer Text',c);
   mergeGames(c,b);assert.equal(listGames()[0].summaryDe,'Deutsch');
+});
+test('PlayStation embedded JSON is recursive, decoded and stored with provenance',async()=>{
+  reset();upsertOwnership({platform:'playstation',externalId:'concept:10002684',title:'Astro Bot'});
+  global.fetch=async(url,options)=>{assert.match(url,/de-de\/concept\/10002684/);assert.equal(options.headers['Accept-Language'],'de-DE');return new Response('<script type="application/json">'+JSON.stringify({changed:{nested:{descriptions:[{type:'LONG',value:'<p>Ein deutsches Weltraumabenteuer &amp; viele Planeten. '+ 'Entdecke neue Welten. '.repeat(40)+'</p>'}]}}})+'</script>');};
+  assert.equal((await descriptionsBatch()).matched,1);
+  const game=listGames()[0];assert.match(game.summaryDe,/Weltraumabenteuer & viele/);assert.ok(game.summaryDe.length<=600);assert.equal(game.summaryDeSource.source,'playstation');
+});
+test('unknown PlayStation structure falls back to a verified Wikipedia game',async()=>{
+  reset();upsertOwnership({platform:'playstation',externalId:'concept:1',title:'Fixture Game'});
+  global.fetch=async url=>{
+    if(url.includes('playstation')) return new Response('<script type="application/json">{"unrecognized":"no description"}</script>');
+    if(url.includes('wbsearchentities'))return Response.json({search:[{id:'Q1'}]});
+    if(url.includes('wbgetentities'))return Response.json({entities:{Q1:{claims:{P31:[{mainsnak:{datavalue:{value:{id:'Q7889'}}}}]},sitelinks:{dewiki:{title:'Fixture Game'}}}}});
+    assert.match(url,/page\/summary/);return Response.json({title:'Fixture Game',type:'standard',extract:'Fixture Game ist ein Computerspiel f?r die Nintendo Switch. Es bietet ein gro?es Abenteuer.'});
+  };
+  assert.equal((await descriptionsBatch()).matched,1);assert.equal(listGames()[0].summaryDeSource.source,'wikipedia');assert.match(listGames()[0].summaryDeSource.url,/de.wikipedia.org/);
+});
+test('non-game Wikipedia result is rejected and failed old fingerprints retry once without schema changes',async()=>{
+  reset();const id=upsertOwnership({platform:'ubisoft',externalId:'x',title:'Fixture'});
+  const schema=()=>db().prepare("SELECT type,name,sql FROM sqlite_master ORDER BY type,name").all();const before=schema();
+  db().prepare('UPDATE games SET summary_de_state=? WHERE id=?').run(JSON.stringify([[],[],null]),id);
+  let calls=0;global.fetch=async url=>{calls++;return Response.json(url.includes('summary')?{title:'Fixture',type:'standard',extract:'Fixture ist ein bekanntes Musikalbum einer britischen Band und wurde weltweit ver?ffentlicht.'}:{});};
+  assert.equal((await descriptionsBatch()).processed,1);assert.equal(listGames()[0].summaryDe,null);const count=calls;
+  assert.equal((await descriptionsBatch()).processed,0);assert.equal(calls,count);assert.deepEqual(schema(),before);
+});
+test('existing German text is never replaced, including old fingerprint',async()=>{
+  reset();const id=upsertOwnership({platform:'playstation',externalId:'concept:1',title:'Existing'});
+  db().prepare('UPDATE games SET summary_de=?,summary_de_state=? WHERE id=?').run('Mein deutscher Text','old',id);
+  global.fetch=async()=>{throw Error('must not fetch');};assert.equal((await descriptionsBatch()).processed,0);assert.equal(listGames()[0].summaryDe,'Mein deutscher Text');
 });
 test.after(()=>{db().close();fs.rmSync(dir,{recursive:true,force:true});});
