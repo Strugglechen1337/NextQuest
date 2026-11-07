@@ -6,6 +6,7 @@ import type { GameMeta } from "@/lib/library";
 import { PLATFORMS } from "@/lib/platforms";
 import { formatMinutes } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
+import { GameJournal } from "./GameJournal";
 import { IgdbPicker } from "./IgdbPicker";
 import { Cover, Modal, PlatformPill } from "./ui";
 
@@ -108,6 +109,8 @@ export function GameDetail({
             <Stat label="Exemplare" value={game.copies ? `${game.copies}×` : "Game Pass"} />
           </div>
 
+          {game.ownerships.some(o => o.platform === "gamepass" && o.leavingSoon) && <div className="rounded-lg bg-amber-400/15 p-2 text-sm text-amber-200">Verlässt Game Pass bald</div>}
+          <GameJournal key={`${game.id}-${game.completed}`} game={game} onChanged={onChanged} />
           <div className="card p-3">
             <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Spieldauer</div>
             <div className="grid grid-cols-3 gap-2 text-sm">
@@ -144,7 +147,7 @@ export function GameDetail({
           </label>
 
           {(game.summaryDe || game.summary) && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summaryDe || game.summary}{!game.summaryDe && <span className="text-xs text-white/45"> (englisch)</span>}</p>}
-          {game.summaryDe && game.summaryDeSource?.source === "wikipedia" && <p className="text-xs text-white/45"><a href={game.summaryDeSource.url} target="_blank" rel="noreferrer" className="underline">Quelle: Wikipedia</a> ? <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer" className="underline">CC BY-SA 4.0</a> ? gek?rzt</p>}
+          {game.summaryDe && game.summaryDeSource?.source === "wikipedia" && <p className="text-xs text-white/45"><a href={game.summaryDeSource.url} target="_blank" rel="noreferrer" className="underline">Quelle: Wikipedia</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer" className="underline">CC BY-SA 4.0</a> · gekürzt</p>}
 
           <div>
             <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Wo du es hast</div>
@@ -158,6 +161,7 @@ export function GameDetail({
                   <span className="text-white/55">
                     {PLATFORMS[o.platform]?.subscription ? "Abo" : formatMinutes(o.playtimeMin)}
                   </span>
+                  {o.progressPct != null && <div className="w-full space-y-1 text-xs text-emerald-300"><div>Erfolge: ca. {Math.round(o.progressPct)} % geschafft{o.achievementsTotal != null ? ` (${o.achievementsEarned}/${o.achievementsTotal})` : ""}</div><progress className="h-1.5 w-full accent-emerald-400" value={o.progressPct} max={100} aria-label={`Erfolgsfortschritt ${PLATFORMS[o.platform]?.label}`} /></div>}
                   {game.ownerships.length > 1 && (
                     <button
                       type="button"

@@ -16,7 +16,7 @@ export interface Suggestion {
 }
 
 export function isCandidate(g: Game, includeGamePass: boolean) {
-  return !g.completed && (g.owned || (includeGamePass && g.inGamePass));
+  return !g.completed && g.status !== "abandoned" && g.status !== "completed" && (g.owned || (includeGamePass && g.inGamePass));
 }
 
 /**
@@ -35,6 +35,8 @@ export function suggestForTime(
     if (!isCandidate(g, includeGamePass)) continue;
     let score = 0;
     const reasons: string[] = [];
+    if (g.status === "wanted" || g.status === "playing") score += 7;
+    if (includeGamePass && g.ownerships.some(o => o.platform === "gamepass" && o.leavingSoon)) { score += 8; reasons.push("Verlässt bald den Game Pass"); }
 
     if (g.rating) score += ((g.rating - 70) / 30) * 15;
     if (g.ratingCount) score += Math.log10(g.ratingCount + 1) * 3;

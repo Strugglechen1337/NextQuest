@@ -13,6 +13,7 @@ import {
 } from "@/lib/genres";
 import { PLATFORM_ORDER, PLATFORMS, type PlatformId } from "@/lib/platforms";
 import { formatMinutes } from "@/lib/suggest";
+import { GAME_STATUSES, effectiveStatus, type GameStatus } from "@/lib/game-status";
 import type { Game } from "@/lib/types";
 import { AddGameDialog } from "./AddGameDialog";
 import { GameCard } from "./GameCard";
@@ -20,9 +21,9 @@ import { GameDetail } from "./GameDetail";
 import { SuggestPanel } from "./SuggestPanel";
 import { Notice } from "./ui";
 
-type Status = "open" | "all" | "completed";
-type Ownership = "owned" | "all" | "gamepass";
-type Sort = "playtime" | "popularity" | "rating" | "duration-asc" | "duration-desc" | "recent" | "title";
+type Status = GameStatus | "all";
+type Ownership = "owned" | "all" | "gamepass" | "leaving";
+type Sort = "user-rating" | "playtime" | "popularity" | "rating" | "duration-asc" | "duration-desc" | "recent" | "title";
 type Duration = "any" | "short" | "medium" | "long" | "huge" | "unknown";
 
 const DURATIONS: { id: Duration; label: string; test: (m: number | null) => boolean }[] = [
@@ -35,6 +36,7 @@ const DURATIONS: { id: Duration; label: string; test: (m: number | null) => bool
 ];
 
 const SORTS: { id: Sort; label: string }[] = [
+  { id: "user-rating", label: "Meine Bewertung" },
   { id: "playtime", label: "Meiste Spielzeit" },
   { id: "popularity", label: "Beliebtheit" },
   { id: "rating", label: "Bewertung" },
@@ -59,6 +61,8 @@ function sortGames(list: Game[], sort: Sort) {
         return b.playtimeMin - a.playtimeMin || a.title.localeCompare(b.title);
       case "popularity":
         return nullLast(a.ratingCount, b.ratingCount, -1);
+      case "user-rating":
+        return nullLast(a.userRating ?? null, b.userRating ?? null, -1);
       case "rating":
         return nullLast(a.rating, b.rating, -1);
       case "duration-asc":
@@ -149,8 +153,8 @@ export function Library() {
     const dur = DURATIONS.find((d) => d.id === duration)!;
     const list = games.filter((g) => {
       if (needle && !g.title.toLowerCase().includes(needle)) return false;
-      if (status === "open" && g.completed) return false;
-      if (status === "completed" && !g.completed) return false;
+      if (status !== "all" && effectiveStatus(g.status, g.completed) !== status) return false;
+      if (ownership === "leaving" && !g.ownerships.some(o => o.platform === "gamepass" && o.leavingSoon)) return false;
       if (ownership === "owned" && !g.owned) return false;
       if (ownership === "gamepass" && !g.inGamePass) return false;
       if (onlyDupes && g.copies < 2) return false;
@@ -175,7 +179,7 @@ export function Library() {
 
   const toggleCompleted = async (g: Game) => {
     setData((d) =>
-      d ? { ...d, games: d.games.map((x) => (x.id === g.id ? { ...x, completed: !g.completed } : x)) } : d,
+      d ? { ...d, games: d.games.map((x) => (x.id === g.id ? { ...x, completed: !g.completed, status: g.completed ? "open" : "completed" } : x)) } : d,
     );
     await api(`/api/games/${g.id}`, { method: "PATCH", body: { completed: !g.completed } }).catch(load);
     load();
@@ -282,7 +286,7 @@ export function Library() {
 
       {/* Filter: PC (ab lg) – in einer aufgeräumten Zeile, Chips darunter */}
       <section className="hidden space-y-3 lg:block" aria-label="Suche und Filter">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-48 flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35">⌕</span>
             <input
@@ -299,9 +303,8 @@ export function Library() {
             value={status}
             onChange={(e) => setStatus(e.target.value as Status)}
           >
-            <option value="open">Offene Spiele</option>
             <option value="all">Alle Spiele</option>
-            <option value="completed">Durchgespielt</option>
+            {Object.entries(GAME_STATUSES).map(([id,label]) => <option key={id} value={id}>{label}</option>)}
           </select>
           {gamePassOn && (
             <select
@@ -313,6 +316,7 @@ export function Library() {
               <option value="owned">Nur gekaufte</option>
               <option value="all">Gekauft + Game Pass</option>
               <option value="gamepass">Nur Game Pass</option>
+              <option value="leaving">Verlässt bald</option>
             </select>
           )}
           <select
@@ -618,9 +622,8 @@ function FilterBottomSheet({
             <label className="block space-y-1">
               <span className="text-xs font-medium text-white/60">Status</span>
               <select className="input" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-                <option value="open">Offene Spiele</option>
                 <option value="all">Alle Spiele</option>
-                <option value="completed">Durchgespielt</option>
+            {Object.entries(GAME_STATUSES).map(([id,label]) => <option key={id} value={id}>{label}</option>)}
               </select>
             </label>
 
@@ -631,6 +634,7 @@ function FilterBottomSheet({
                   <option value="owned">Nur gekaufte</option>
                   <option value="all">Gekauft + Game Pass</option>
                   <option value="gamepass">Nur Game Pass</option>
+              <option value="leaving">Verlässt bald</option>
                 </select>
               </label>
             )}

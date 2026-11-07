@@ -63,6 +63,10 @@ function open(): Database {
   for (const column of ["keywords", "session_pref", "summary_de", "summary_de_state"]) {
     if (!columns.has(column)) db.exec(`ALTER TABLE games ADD COLUMN ${column} TEXT`);
   }
+  for (const [table, fields] of Object.entries({ games: { status: "TEXT", user_note: "TEXT", user_rating: "INTEGER" }, ownerships: { achievements_earned: "INTEGER", achievements_total: "INTEGER", progress_pct: "REAL", leaving_soon: "INTEGER" } })) {
+    const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
+    for (const [name, type] of Object.entries(fields)) if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+  }
   return db;
 }
 

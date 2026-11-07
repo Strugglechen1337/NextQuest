@@ -8,6 +8,10 @@ export interface Ownership {
   playtimeMin: number;
   lastPlayed: string | null;
   source: "sync" | "manual" | "demo";
+  achievementsEarned?: number | null;
+  achievementsTotal?: number | null;
+  progressPct?: number | null;
+  leavingSoon?: boolean;
 }
 
 export type SessionPreference = "short" | "medium" | "long";
@@ -34,6 +38,9 @@ export interface Game {
   summaryDe: string | null;
   summaryDeSource?: { source: string; url?: string } | null;
   completed: boolean;
+  status?: import("./game-status").GameStatus;
+  userNote?: string | null;
+  userRating?: number | null;
   enrichState: "pending" | "done" | "notfound" | "manual";
   ownerships: Ownership[];
   /** abgeleitet */

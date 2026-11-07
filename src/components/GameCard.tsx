@@ -19,6 +19,7 @@ export function GameCard({
   onOpen: () => void;
   onToggleCompleted: () => void;
 }) {
+  const progress = game.ownerships.filter(o => o.progressPct != null).map(o => o.progressPct as number);
   const actionLabel = game.completed
     ? `${game.title} als offen markieren`
     : `${game.title} als durchgespielt abhaken`;
@@ -52,6 +53,8 @@ export function GameCard({
           <div className="line-clamp-2 min-h-[2.5em] text-[13px] font-medium leading-tight break-words @[155px]:text-sm">
             {game.title}
           </div>
+          {game.ownerships.some(o => o.platform === "gamepass" && o.leavingSoon) && <div className="text-[11px] text-amber-200">Verlässt Game Pass bald</div>}
+          {progress.length > 0 && <div className="text-[11px] text-emerald-300">ca. {Math.round(Math.max(...progress))} % geschafft</div>}
           <div className="flex flex-wrap gap-1">
             {platformsOf(game).map((p) => (
               <PlatformPill key={p} platform={p} />

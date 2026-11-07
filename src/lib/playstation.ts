@@ -1,5 +1,7 @@
 import "server-only";
 import { tx } from "./db";
+import { psnProgress, type AchievementProgress } from "./achievement-progress";
+import { normalizeTitle } from "./library";
 import { pruneOwnerships, upsertOwnership } from "./library";
 import { getSetting, setSetting } from "./settings";
 
@@ -267,6 +269,26 @@ export async function testPlayStation(npssoInput: string): Promise<PsnTestResult
   return { onlineId, gameCount: groupTitles(titles).length, refreshExpires: tokens.refreshExpires };
 }
 
+async function trophyProgress(token: string): Promise<Map<string, AchievementProgress>> {
+  const result = new Map<string, AchievementProgress>();
+  const ambiguous = new Set<string>();
+  try {
+    for (let offset = 0; offset < 10000; offset += 100) {
+      const page = await apiJson<{ trophyTitles?: { trophyTitleName?: string; progress?: number }[]; totalItemCount?: number }>(`/trophy/v1/users/me/trophyTitles?limit=100&offset=${offset}`, token);
+      if (!Array.isArray(page.trophyTitles)) break;
+      for (const title of page.trophyTitles) {
+        if (!title.trophyTitleName) continue;
+        const key = normalizeTitle(title.trophyTitleName);
+        if (result.has(key)) ambiguous.add(key);
+        else result.set(key, psnProgress(title));
+      }
+      if (page.trophyTitles.length < 100 || (page.totalItemCount !== undefined && offset + 100 >= page.totalItemCount)) break;
+    }
+  } catch { /* Trophäen sind optional; keine ?nderung an Besitz oder Prune. */ }
+  for (const key of ambiguous) result.delete(key);
+  return result;
+}
+
 export async function syncPlayStation() {
   const token = await accessToken();
   const games = groupTitles(await fetchPlayedGames(token));
@@ -274,8 +296,9 @@ export async function syncPlayStation() {
     throw new Error(
       "Das PlayStation Network liefert keine Spiele. Es werden nur PS4- und PS5-Spiele erfasst, die mindestens einmal gestartet wurden.",
     );
+  const progress = await trophyProgress(token);
   tx(() => {
-    for (const g of games) upsertOwnership({ platform: "playstation", ...g });
+    for (const g of games) upsertOwnership({ platform: "playstation", ...g, ...progress.get(normalizeTitle(g.title)) });
     pruneOwnerships("playstation", new Set(games.map((g) => g.externalId)));
   });
   if (!getSetting("psn.onlineId")) setSetting("psn.onlineId", await fetchOnlineId(token));
