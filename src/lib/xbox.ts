@@ -151,6 +151,7 @@ export async function syncXbox() {
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
   let response = await request(apiKey, "/player/titleHistory");
   let data = payload(response);
+  let achievementsFallback = false;
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
   // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen
   if (data.titles.length === 0) {
@@ -159,6 +160,7 @@ export async function syncXbox() {
     if (Array.isArray(altData.titles) && altData.titles.length) {
       response = alt;
       data = altData;
+      achievementsFallback = true;
     }
   }
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
@@ -179,7 +181,9 @@ export async function syncXbox() {
     );
   }
   const playtimes = new Map<string, number>();
-  let warning: string | undefined;
+  let warning: string | undefined = achievementsFallback
+    ? "Die Erfolgsliste kann unvollständig sein; vorhandene Xbox-Einträge bleiben erhalten."
+    : undefined;
   // 100 titles per request, never one request per game.
   for (let i = 0; i < games.length; i += 100) {
     try {
@@ -188,7 +192,7 @@ export async function syncXbox() {
       });
       for (const [id, value] of minutes(stats, xuid)) playtimes.set(id, value);
     } catch (e) {
-      warning = `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`;
+      warning = [warning, `Spiele importiert, Spielzeit teilweise nicht verfügbar: ${(e as Error).message}`].filter(Boolean).join(" ");
       break;
     }
   }
@@ -199,7 +203,7 @@ export async function syncXbox() {
         coverUrl: cover(game.displayImage), playtimeMin: playtimes.get(String(game.titleId)),
         lastPlayed: date && Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null });
     }
-    pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
+    if (!achievementsFallback) pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
     setSetting("xbox.lastSync", new Date().toISOString());
   });
   return { count: games.length, playtimeCount: playtimes.size, warning };

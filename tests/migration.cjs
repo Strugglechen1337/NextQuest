@@ -1,0 +1,27 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- isolated Node loader fixture. */
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const assert = require('node:assert/strict');
+const Module = require('node:module');
+const ts = require('typescript');
+const {DatabaseSync} = require('node:sqlite');
+const realLoad=Module._load;
+Module._load=function(n,p,m){return n==='server-only'?{}:realLoad.call(this,n,p,m)};
+require.extensions['.ts']=function(m,f){m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true,target:ts.ScriptTarget.ES2022}}).outputText,f)};
+const dir=fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(),'nextquest-migration-'));
+process.env.DATA_DIR=dir;
+const dbfile=path.join(dir,'nextquest.db');
+const fixture=new DatabaseSync(dbfile);
+fixture.exec("CREATE TABLE games(id INTEGER PRIMARY KEY, title TEXT NOT NULL, norm_title TEXT NOT NULL); INSERT INTO games VALUES(1,'fixture','fixture');");
+fixture.close();
+const {db,tx}=require('../src/lib/db.ts');
+const d=db();
+const cols=d.prepare('PRAGMA table_info(games)').all().map(c=>c.name);
+assert(cols.includes('keywords') && cols.includes('session_pref'));
+assert.equal(d.prepare('SELECT count(*) AS n FROM games').get().n,1);
+assert.throws(()=>tx(()=>{d.prepare("INSERT INTO games (title,norm_title) VALUES ('rollback','rollback')").run();throw Error('fixture');}));
+assert.equal(d.prepare('SELECT count(*) AS n FROM games').get().n,1);
+assert.equal(d.prepare('PRAGMA quick_check').get().quick_check,'ok');
+d.close(); fs.rmSync(dir,{recursive:true,force:true});
+console.log('additive migration, retained fixture row, transaction rollback and quick_check: ok');
