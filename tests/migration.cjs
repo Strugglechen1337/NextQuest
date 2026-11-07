@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- isolated Node loader fixture. */
+ 
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
