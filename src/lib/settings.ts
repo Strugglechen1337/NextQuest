@@ -13,12 +13,18 @@ export const SETTING_KEYS = [
   "gamepass.catalogs",
   "gamepass.market",
   "gamepass.lastSync",
+  "psn.refreshToken",
+  "psn.accessToken",
+  "psn.accessExpires",
+  "psn.refreshExpires",
+  "psn.onlineId",
+  "psn.lastSync",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 /** Geheimnisse, die nie im Klartext an den Browser gehen. */
-export const SECRET_KEYS: SettingKey[] = ["steam.apiKey", "igdb.clientSecret", "igdb.token"];
+export const SECRET_KEYS: SettingKey[] = ["steam.apiKey", "igdb.clientSecret", "igdb.token", "psn.refreshToken", "psn.accessToken"];
 
 export function getSetting(key: SettingKey): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as
@@ -48,6 +54,7 @@ export function publicSettings() {
   const out: Record<string, string | null> = {};
   for (const key of SETTING_KEYS) {
     if (key === "igdb.token" || key === "igdb.tokenExpires") continue;
+    if (key === "psn.refreshToken" || key === "psn.accessToken" || key === "psn.accessExpires") continue;
     const v = getSetting(key);
     out[key] = v && SECRET_KEYS.includes(key) ? mask(v) : v;
   }
