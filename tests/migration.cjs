@@ -16,12 +16,13 @@ const fixture=new DatabaseSync(dbfile);
 // The original schema without any additive migration; populated metadata and
 // credentials make accidental rewrites visible, alongside ownership/playtime.
 const originalSchema = fs.readFileSync(path.join(__dirname,'../src/lib/db.ts'),'utf8').match(/const SCHEMA = `([\s\S]*?)`;/)[1];
-fixture.exec(originalSchema);
+fixture.exec(originalSchema.replace(/CREATE TABLE IF NOT EXISTS playtime_snapshots[\s\S]*/, ''));
 fixture.exec("INSERT INTO games(id,title,norm_title,igdb_id,summary,completed,enrich_state,rating,genres) VALUES(1,'fixture','fixture',42,'English description',1,'done',88,'[\"RPG\"]'); INSERT INTO settings VALUES('fixture','retained-secret'); INSERT INTO ownerships(game_id,platform,external_id,title,playtime_min,last_played) VALUES(1,'steam','292030','fixture ownership',1234,'2026-01-01');");
 const snapshot = Object.fromEntries(['games','ownerships','settings'].map(t=>[t,fixture.prepare('SELECT * FROM '+t).all()]));
 fixture.close();
 const {db,tx}=require('../src/lib/db.ts');
 let d=db();
+for (const table of ['playtime_snapshots','suggestion_feedback','steam_tags','steam_tag_checks']) assert(d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table));
 const cols=d.prepare('PRAGMA table_info(games)').all().map(c=>c.name);
 assert(cols.includes('keywords') && cols.includes('session_pref'));
 assert(cols.includes('summary_de') && cols.includes('summary_de_state'));

@@ -47,6 +47,32 @@ CREATE TABLE IF NOT EXISTS ownerships (
   UNIQUE(platform, external_id)
 );
 CREATE INDEX IF NOT EXISTS ownerships_game ON ownerships(game_id);
+CREATE TABLE IF NOT EXISTS playtime_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  taken_at TEXT NOT NULL DEFAULT (datetime('now')),
+  playtime_min INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS snapshots_game_platform ON playtime_snapshots(game_id, platform, id);
+CREATE TABLE IF NOT EXISTS suggestion_feedback (
+  game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  time_class TEXT NOT NULL CHECK(time_class IN ('short', 'medium', 'long')),
+  value INTEGER NOT NULL CHECK(value IN (-1, 1)),
+  PRIMARY KEY(game_id, time_class)
+);
+CREATE TABLE IF NOT EXISTS steam_tags (
+  game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  votes INTEGER NOT NULL,
+  PRIMARY KEY(game_id, name)
+);
+CREATE TABLE IF NOT EXISTS steam_tag_checks (
+  game_id INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
+  checked_at TEXT NOT NULL,
+  retry_at TEXT NOT NULL,
+  app_id TEXT
+);
 `;
 
 const globalForDb = globalThis as unknown as { __nextquestDb?: Database };

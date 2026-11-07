@@ -1,5 +1,6 @@
 import type { Game } from "./types";
 import { assessSession, hasMultiplayer } from "./session";
+import { timeClass } from "./session-learning";
 
 export function formatMinutes(min: number | null | undefined): string {
   if (min === null || min === undefined) return "–";
@@ -61,6 +62,10 @@ export function suggestForTime(
     }
 
     reasons.push(session.reason);
+    if (!g.sessionPref && g.learnedSessionMin && g.learnedSessionMin <= minutes * 1.15) score += 20;
+    const feedback = g.timeFeedback?.[timeClass(minutes)];
+    if (feedback === -1) { score -= 60; reasons.push("Für diese Zeit von dir abgewertet"); }
+    if (feedback === 1) { score += 10; reasons.push("Passt für diese Zeit laut deinem Feedback"); }
     if (session.length === "short") score += minutes <= 60 ? 25 : 6;
     if (session.length === "medium") score += minutes >= 60 ? 16 : -12;
     if (session.length === "long") score += minutes < 45 ? -24 : minutes >= 120 ? 20 : -6;

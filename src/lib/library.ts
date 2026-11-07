@@ -1,5 +1,6 @@
 import "server-only";
 import { db, tx } from "./db";
+import { sessionData, snapshotPlaytime } from "./session-data";
 import { PLATFORMS, type PlatformId } from "./platforms";
 import type { Game, LibraryStats, Ownership } from "./types";
 
@@ -92,6 +93,7 @@ function coverChain(primary: string | null, os: OwnershipRow[]): { coverUrl: str
 }
 
 export function listGames(): Game[] {
+  const learned = sessionData();
   const games = db().prepare("SELECT * FROM games").all() as unknown as GameRow[];
   const owns = db().prepare("SELECT * FROM ownerships").all() as unknown as OwnershipRow[];
   const byGame = new Map<number, OwnershipRow[]>();
@@ -111,6 +113,7 @@ export function listGames(): Game[] {
       .sort()
       .at(-1);
     result.push({
+      ...learned.get(g.id),
       id: g.id,
       title: g.title,
       igdbId: g.igdb_id,
@@ -214,6 +217,7 @@ export function upsertOwnership(input: OwnershipInput): number {
     .get(input.platform, input.externalId) as { id: number; game_id: number } | undefined;
 
   if (existing) {
+    snapshotPlaytime(existing.game_id, input.platform);
     d.prepare(
       `UPDATE ownerships SET title = ?, playtime_min = MAX(playtime_min, ?), last_played = COALESCE(?, last_played),
        cover_url = COALESCE(?, cover_url) WHERE id = ?`,
@@ -224,6 +228,7 @@ export function upsertOwnership(input: OwnershipInput): number {
       input.coverUrl ?? null,
       existing.id,
     );
+    snapshotPlaytime(existing.game_id, input.platform);
     return existing.game_id;
   }
 
@@ -243,8 +248,11 @@ export function upsertOwnership(input: OwnershipInput): number {
   );
   if (input.meta) {
     const state = input.meta.igdbId ? "done" : input.source === "demo" ? "manual" : undefined;
-    return applyMeta(gameId, input.meta, state);
+    const target = applyMeta(gameId, input.meta, state);
+    snapshotPlaytime(target, input.platform);
+    return target;
   }
+  snapshotPlaytime(gameId, input.platform);
   return gameId;
 }
 
@@ -292,6 +300,9 @@ export function applyMeta(gameId: number, meta: Partial<GameMeta>, state?: Game[
 /** Verschiebt alle Einträge von `fromId` nach `intoId` und löscht `fromId`. */
 export function mergeGames(fromId: number, intoId: number) {
   const d = db();
+  d.prepare("UPDATE playtime_snapshots SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
+  d.prepare("INSERT OR IGNORE INTO suggestion_feedback(game_id, time_class, value) SELECT ?, time_class, value FROM suggestion_feedback WHERE game_id = ?").run(intoId, fromId);
+  d.prepare("INSERT OR IGNORE INTO steam_tags(game_id, name, votes) SELECT ?, name, votes FROM steam_tags WHERE game_id = ?").run(intoId, fromId);
   d.prepare(
     `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)),
       session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)),
