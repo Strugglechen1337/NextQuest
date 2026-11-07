@@ -1,0 +1,10 @@
+[Unit]
+Description=NextQuest availability check every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,15,30,45:00
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=NextQuest availability monitoring and Telegram alerts
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/nextquest/ops.env
+ExecStart=/usr/bin/python3 %h/.local/lib/nextquest-ops/monitor.py --availability
+TimeoutStartSec=120
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
