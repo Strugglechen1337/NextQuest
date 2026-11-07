@@ -1,4 +1,5 @@
 import datetime as dt
+import fcntl
 import importlib.util
 import os
 from pathlib import Path
@@ -155,6 +156,34 @@ class AvailabilityTests(unittest.TestCase):
 
 
 class BackupTests(unittest.TestCase):
+    def test_operation_lock_serializes_processes(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'NEXTQUEST_UPDATE_DIR': directory}):
+            with backup.operation_lock():
+                fd = os.open(Path(directory) / 'operation.lock', os.O_RDWR)
+                try:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                finally:
+                    os.close(fd)
+            with backup.operation_lock():
+                pass
+
+    def test_operation_lock_refuses_symlink(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'NEXTQUEST_UPDATE_DIR': directory}):
+            target = Path(directory) / 'target'
+            target.touch(mode=0o600)
+            (Path(directory) / 'operation.lock').symlink_to(target)
+            with self.assertRaises(OSError):
+                with backup.operation_lock():
+                    pass
+
+    def test_operation_lock_refuses_public_directory(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'NEXTQUEST_UPDATE_DIR': directory}):
+            os.chmod(directory, 0o755)
+            with self.assertRaises(RuntimeError):
+                with backup.operation_lock():
+                    pass
+
     def test_snapshot_permissions_integrity_and_retention(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

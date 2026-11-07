@@ -1,17 +1,38 @@
 #!/usr/bin/env python3
 """Create and verify a private SQLite online backup, then expire our snapshots."""
 import datetime as dt
-from contextlib import closing
+from contextlib import closing, contextmanager
+import fcntl
 import os
 from pathlib import Path
 import re
 import sqlite3
+import stat
 import tempfile
 import time
 
 DB = Path(os.environ.get('NEXTQUEST_DB', str(Path.home() / 'nextquest/data/nextquest.db')))
 BACKUPS = Path(os.environ.get('NEXTQUEST_BACKUP_DIR', str(Path.home() / 'nextquest-backups/nightly')))
 NAME = re.compile(r'nextquest-\d{8}T\d{6}\.\d{6}Z\.sqlite3\Z')
+
+
+@contextmanager
+def operation_lock():
+    """Serialize backup and updater; callers must not recursively acquire it."""
+    directory = Path(os.environ.get('NEXTQUEST_UPDATE_DIR', str(Path.home() / '.local/state/nextquest/update')))
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = directory.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise RuntimeError('Unsicheres Sperrverzeichnis')
+    fd = os.open(directory / 'operation.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise RuntimeError('Unsichere Sperrdatei')
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 def backup():
@@ -48,4 +69,5 @@ def backup():
 
 
 if __name__ == '__main__':
-    backup()
+    with operation_lock():
+        backup()
