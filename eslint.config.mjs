@@ -9,6 +9,11 @@ const eslintConfig = defineConfig([
     // Cover kommen von vielen externen Quellen – bewusst normales <img>
     rules: { "@next/next/no-img-element": "off" },
   },
+  {
+    // Test- und Prüfskripte sind CommonJS und laden Module bewusst per require()
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
