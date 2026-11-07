@@ -23,7 +23,13 @@ export function isCandidate(g: Game, includeGamePass: boolean) {
  * Bewertet Spiele danach, wie gut sie zur verfügbaren Zeit passen.
  * `jitter` mischt etwas Zufall hinein, damit „Neu würfeln“ andere Vorschläge bringt.
  */
-export function suggestForTime(games: Game[], minutes: number, includeGamePass: boolean, jitter = 0): Suggestion[] {
+export function suggestForTime(
+  games: Game[],
+  minutes: number,
+  includeGamePass: boolean,
+  jitter = 0,
+  limit: number | null = 6,
+): Suggestion[] {
   const out: Suggestion[] = [];
   for (const g of games) {
     if (!isCandidate(g, includeGamePass)) continue;
@@ -77,10 +83,55 @@ export function suggestForTime(games: Game[], minutes: number, includeGamePass: 
     if (!reasons.length && g.rating && g.rating >= 85) reasons.push("Sehr gut bewertet");
     out.push({ game: g, score, reasons });
   }
-  return out.sort((a, b) => b.score - a.score).slice(0, 6);
+  out.sort((a, b) => b.score - a.score);
+  return limit === null ? out : out.slice(0, limit);
 }
 
-export function randomPick(games: Game[], includeGamePass: boolean): Game | null {
-  const c = games.filter((g) => isCandidate(g, includeGamePass));
+/**
+ * „Andere Vorschläge“: zieht neue, noch nicht gezeigte Spiele aus allen gut passenden Kandidaten.
+ * Bessere Treffer sind wahrscheinlicher, aber nicht garantiert. Sind alle passenden Spiele schon
+ * einmal gezeigt worden, beginnt die Runde von vorn (`reset: true`).
+ */
+export function rerollForTime(
+  games: Game[],
+  minutes: number,
+  includeGamePass: boolean,
+  shown: Set<number>,
+): { items: Suggestion[]; reset: boolean } {
+  const all = suggestForTime(games, minutes, includeGamePass, 0, null);
+  if (!all.length) return { items: [], reset: false };
+  const best = all[0].score;
+  // Pool: alle Spiele, die halbwegs passen (bis 35 Punkte unter dem besten), mindestens die besten 24, höchstens 120
+  const pool = all.filter((s, i) => i < 24 || s.score >= best - 35).slice(0, 120);
+  const fresh = pool.filter((s) => !shown.has(s.game.id));
+  // Kaum noch Neues übrig → neue Runde mit allen passenden Spielen
+  const reset = fresh.length < 3;
+  const picked = weightedSample(reset ? pool : fresh, 6);
+  // Weniger als 6 neue Spiele übrig: mit bereits gezeigten auffüllen
+  if (picked.length < 6) {
+    const rest = pool.filter((s) => !picked.includes(s));
+    picked.push(...weightedSample(rest, 6 - picked.length));
+  }
+  return { items: picked.sort((a, b) => b.score - a.score), reset };
+}
+
+/** Gewichtete Zufallsauswahl ohne Zurücklegen – höhere Punktzahl = wahrscheinlicher. */
+function weightedSample(list: Suggestion[], n: number): Suggestion[] {
+  const bag = [...list];
+  const picked: Suggestion[] = [];
+  while (picked.length < n && bag.length) {
+    const min = Math.min(...bag.map((s) => s.score));
+    const weights = bag.map((s) => s.score - min + 10);
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    let i = 0;
+    while (i < bag.length - 1 && r > weights[i]) r -= weights[i++];
+    picked.push(bag.splice(i, 1)[0]);
+  }
+  return picked;
+}
+
+export function randomPick(games: Game[], includeGamePass: boolean, avoidId?: number): Game | null {
+  const all = games.filter((g) => isCandidate(g, includeGamePass));
+  const c = all.length > 1 && avoidId !== undefined ? all.filter((g) => g.id !== avoidId) : all;
   return c.length ? c[Math.floor(Math.random() * c.length)] : null;
 }

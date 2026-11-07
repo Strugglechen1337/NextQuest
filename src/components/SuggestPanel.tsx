@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatMinutes, randomPick, suggestForTime, type Suggestion } from "@/lib/suggest";
+import { formatMinutes, randomPick, rerollForTime, suggestForTime, type Suggestion } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
 import { platformsOf } from "./GameCard";
 import { Cover, PlatformPill } from "./ui";
@@ -22,18 +22,29 @@ export function SuggestPanel({
   const [results, setResults] = useState<Suggestion[] | null>(null);
   const [random, setRandom] = useState<Game | null>(null);
   const [rolls, setRolls] = useState(0);
+  // Bereits gezeigte Vorschläge – „Andere Vorschläge“ zeigt bevorzugt neue Spiele
+  const [shown, setShown] = useState<Set<number>>(new Set());
 
   const ask = (m: number, reroll = false) => {
     setMinutes(m);
     setRandom(null);
-    setResults(suggestForTime(games, m, includeGamePass, reroll ? 25 : 4));
-    setRolls((r) => (reroll ? r + 1 : 0));
+    if (!reroll) {
+      const items = suggestForTime(games, m, includeGamePass, 4);
+      setResults(items);
+      setShown(new Set(items.map((s) => s.game.id)));
+      setRolls(0);
+      return;
+    }
+    const { items, reset } = rerollForTime(games, m, includeGamePass, shown);
+    setResults(items);
+    setShown((prev) => new Set([...(reset ? [] : prev), ...items.map((s) => s.game.id)]));
+    setRolls((r) => (reset ? 0 : r + 1));
   };
 
   const roll = () => {
     setResults(null);
     setMinutes(null);
-    setRandom(randomPick(games, includeGamePass));
+    setRandom((prev) => randomPick(games, includeGamePass, prev?.id));
   };
 
   return (
