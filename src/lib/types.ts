@@ -10,6 +10,8 @@ export interface Ownership {
   source: "sync" | "manual" | "demo";
 }
 
+export type SessionPreference = "short" | "medium" | "long";
+
 export interface Game {
   id: number;
   title: string;
@@ -19,6 +21,8 @@ export interface Game {
   ratingCount: number | null;
   genres: string[];
   modes: string[];
+  keywords: string[];
+  sessionPref: SessionPreference | null;
   /** Spieldauer in Minuten (IGDB Time to Beat) */
   ttbHastily: number | null;
   ttbNormally: number | null;

@@ -125,6 +125,23 @@ export function GameDetail({
             </div>
           </div>
 
+          <label className="block space-y-2 text-sm">
+            <span className="text-white/65">Session-Länge</span>
+            <select
+              className="min-h-11 w-full rounded-xl border border-white/15 bg-zinc-900 px-3 py-2 text-white"
+              value={game.sessionPref ?? "auto"}
+              disabled={busy}
+              onChange={(e) => run(() => api(`/api/games/${game.id}`, {
+                method: "PATCH", body: { sessionPref: e.target.value === "auto" ? null : e.target.value },
+              }))}
+            >
+              <option value="auto">Automatisch</option>
+              <option value="short">Kurze Runden</option>
+              <option value="medium">Mittel</option>
+              <option value="long">Lange Sessions</option>
+            </select>
+          </label>
+
           {game.summary && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summary}</p>}
 
           <div>

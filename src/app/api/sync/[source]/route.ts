@@ -3,7 +3,7 @@ import { handle } from "@/lib/api";
 import { syncEpic } from "@/lib/epic";
 import { syncGamePass } from "@/lib/gamepass";
 import { syncGog } from "@/lib/gog";
-import { enrichBatch, resetNotFound } from "@/lib/igdb";
+import { enrichBatch, resetNotFound, refreshMetadata } from "@/lib/igdb";
 import { deletePlatform } from "@/lib/library";
 import { setSetting } from "@/lib/settings";
 import { syncSteam } from "@/lib/steam";
@@ -24,6 +24,9 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]"
       case "gamepass":
         return syncGamePass();
       case "igdb":
+        return enrichBatch(40);
+      case "igdb-refresh":
+        refreshMetadata();
         return enrichBatch(40);
       case "igdb-retry":
         resetNotFound();

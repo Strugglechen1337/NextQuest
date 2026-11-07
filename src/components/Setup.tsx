@@ -99,7 +99,7 @@ function IgdbStep({ data, reload }: StepProps) {
     }
   };
 
-  const enrich = async (retry = false) => {
+  const enrich = async (retry: boolean | "refresh" = false) => {
     setBusy(true);
     setMsg(null);
     try {
@@ -161,6 +161,9 @@ function IgdbStep({ data, reload }: StepProps) {
               title="Nicht gefundene erneut suchen"
             >
               Nicht gefundene erneut suchen
+            </button>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => enrich("refresh")}>
+              Spieldaten aktualisieren
             </button>
           </>
         )}
