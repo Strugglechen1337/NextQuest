@@ -110,4 +110,13 @@ test('local scheduler computes before/after, catches up once and preserves daily
   await finished(jobsStatus().running);
   assert.deepEqual(schema(), before);
 });
+
+test('first start only records a baseline and does not sync immediately', () => {
+  const at = (day, hour, minute = 0) => new Date(2026, 10, day, hour, minute);
+  setSetting('auto.enabled', '1'); setSetting('auto.time', '04:00'); setSetting('auto.lastRun', null);
+  assert.equal(schedulerTick(at(10, 11, 30)), undefined);
+  assert.equal(getSetting('auto.lastRun'), at(10, 11, 30).toISOString());
+  assert.equal(jobsStatus(at(10, 11, 31)).running, null);
+  assert.equal(schedulerTick(at(10, 23)), undefined);
+});
 test.after(() => { db().close(); fs.rmSync(dir, { recursive: true, force: true }); });

@@ -108,6 +108,12 @@ export function startJob(kind: JobKind): Job {
 
 export function schedulerTick(now = new Date()) {
   const status = jobsStatus(now);
+  // Erster Start (noch nie gelaufen): nur Startpunkt merken, nicht sofort alles abgleichen.
+  // Der erste automatische Lauf kommt zur nächsten eingestellten Uhrzeit.
+  if (status.auto.enabled && !status.auto.lastRun) {
+    setSetting("auto.lastRun", now.toISOString());
+    return;
+  }
   if (!status.auto.enabled || state.running || !schedule(now, status.auto.time, status.auto.lastRun).due) return;
   // Record before launch: failed/interrupted runs are retried next day, not every minute.
   setSetting("auto.lastRun", now.toISOString());
