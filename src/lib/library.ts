@@ -30,6 +30,8 @@ interface GameRow {
   rating_count: number | null;
   genres: string | null;
   modes: string | null;
+  keywords: string | null;
+  session_pref: Game["sessionPref"];
   ttb_hastily: number | null;
   ttb_normally: number | null;
   ttb_completely: number | null;
@@ -88,6 +90,8 @@ export function listGames(): Game[] {
       ratingCount: g.rating_count,
       genres: parseList(g.genres),
       modes: parseList(g.modes),
+      keywords: parseList(g.keywords),
+      sessionPref: g.session_pref,
       ttbHastily: g.ttb_hastily,
       ttbNormally: g.ttb_normally,
       ttbCompletely: g.ttb_completely,
@@ -146,6 +150,7 @@ export interface GameMeta {
   ratingCount: number | null;
   genres: string[];
   modes: string[];
+  keywords?: string[];
   ttbHastily: number | null;
   ttbNormally: number | null;
   ttbCompletely: number | null;
@@ -242,6 +247,7 @@ export function applyMeta(gameId: number, meta: Partial<GameMeta>, state?: Game[
   put("rating_count", meta.ratingCount);
   put("genres", meta.genres);
   put("modes", meta.modes);
+  put("keywords", meta.keywords);
   put("ttb_hastily", meta.ttbHastily);
   put("ttb_normally", meta.ttbNormally);
   put("ttb_completely", meta.ttbCompletely);
@@ -256,8 +262,9 @@ export function applyMeta(gameId: number, meta: Partial<GameMeta>, state?: Game[
 export function mergeGames(fromId: number, intoId: number) {
   const d = db();
   d.prepare(
-    `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)) WHERE id = ?`,
-  ).run(fromId, intoId);
+    `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)),
+      session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)) WHERE id = ?`,
+  ).run(fromId, fromId, intoId);
   d.prepare("UPDATE ownerships SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
   d.prepare("DELETE FROM games WHERE id = ?").run(fromId);
 }

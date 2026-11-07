@@ -5,7 +5,7 @@ import { getSetting, setSetting } from "./settings";
 
 const API = "https://api.igdb.com/v4";
 const GAME_FIELDS =
-  "fields id,name,cover.image_id,total_rating,total_rating_count,genres.name,themes.name,game_modes.name,first_release_date,summary";
+  "fields id,name,cover.image_id,total_rating,total_rating_count,genres.name,themes.name,keywords.name,game_modes.name,first_release_date,summary";
 
 export function igdbConfigured() {
   return !!(getSetting("igdb.clientId") && getSetting("igdb.clientSecret"));
@@ -73,6 +73,7 @@ interface IgdbGame {
   total_rating_count?: number;
   genres?: { name: string }[];
   themes?: { name: string }[];
+  keywords?: { name: string }[];
   game_modes?: { name: string }[];
   first_release_date?: number;
   summary?: string;
@@ -86,6 +87,7 @@ function toMeta(g: IgdbGame): GameMeta {
     rating: g.total_rating ?? null,
     ratingCount: g.total_rating_count ?? null,
     genres: [...(g.genres ?? []), ...(g.themes ?? [])].map((x) => x.name),
+    keywords: (g.keywords ?? []).map((x) => x.name),
     modes: (g.game_modes ?? []).map((x) => x.name),
     ttbHastily: null,
     ttbNormally: null,
@@ -145,13 +147,14 @@ interface PendingRow {
   id: number;
   title: string;
   steam_app: string | null;
+  igdb_id: number | null;
 }
 
 /** Reichert bis zu `limit` Spiele mit IGDB-Daten an. Gibt zurück, wie viele noch offen sind. */
 export async function enrichBatch(limit = 40) {
   const pending = db()
     .prepare(
-      `SELECT g.id, g.title,
+      `SELECT g.id, g.title, g.igdb_id,
         (SELECT external_id FROM ownerships o WHERE o.game_id = g.id AND o.platform = 'steam' LIMIT 1) AS steam_app
        FROM games g WHERE g.enrich_state = 'pending' ORDER BY g.id LIMIT ?`,
     )
@@ -159,9 +162,12 @@ export async function enrichBatch(limit = 40) {
 
   const found = new Map<number, number>(); // gameId -> igdbId
 
+  // Vorhandene (auch manuell gewählte) Zuordnungen immer beibehalten.
+  for (const p of pending) if (p.igdb_id) found.set(p.id, p.igdb_id);
+
   // 1) Steam-Spiele über die Steam-AppID zuordnen (zuverlässiger als der Name)
-  const steamMap = await steamToIgdb(pending.filter((p) => p.steam_app).map((p) => p.steam_app!));
-  for (const p of pending) if (p.steam_app && steamMap.has(p.steam_app)) found.set(p.id, steamMap.get(p.steam_app)!);
+  const steamMap = await steamToIgdb(pending.filter((p) => !p.igdb_id && p.steam_app).map((p) => p.steam_app!));
+  for (const p of pending) if (!p.igdb_id && p.steam_app && steamMap.has(p.steam_app)) found.set(p.id, steamMap.get(p.steam_app)!);
 
   // 2) Rest per Namenssuche (max. 10 Suchen pro Multiquery)
   const rest = pending.filter((p) => !found.has(p.id));
@@ -215,6 +221,10 @@ export async function enrichBatch(limit = 40) {
 
   const left = db().prepare("SELECT COUNT(*) AS n FROM games WHERE enrich_state = 'pending'").get() as { n: number };
   return { processed: pending.length, matched: metas.size, remaining: left.n };
+}
+
+export function refreshMetadata() {
+  db().prepare("UPDATE games SET enrich_state = 'pending'").run();
 }
 
 export function resetNotFound() {
