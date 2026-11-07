@@ -11,7 +11,13 @@ async function request(apiKey: string, path: string, body?: unknown): Promise<un
   try {
     res = await fetch(`${API}${path}`, {
       method: body ? "POST" : "GET",
-      headers: { "X-Authorization": apiKey, "Content-Type": "application/json", Accept: "application/json" },
+      // Accept-Language explizit setzen: Node schickt sonst „*“, das der Xbox-Dienst als ungültig ablehnt
+      headers: {
+        "X-Authorization": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "Accept-Language": "de-DE",
+      },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
@@ -104,6 +110,8 @@ function cover(value?: string) {
   if (!value) return null;
   try {
     const url = new URL(value.startsWith("//") ? `https:${value}` : value);
+    // Microsoft liefert Bild-Links oft mit http:// – auf https umstellen (die Bild-Server können beides)
+    if (url.protocol === "http:") url.protocol = "https:";
     if (url.protocol !== "https:") return null;
     if (url.hostname === "store-images.s-microsoft.com") url.searchParams.set("w", "300");
     return url.toString();
