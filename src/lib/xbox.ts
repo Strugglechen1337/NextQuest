@@ -140,9 +140,9 @@ function isGame(t: Record<string, unknown>): boolean {
   const media = String(t.mediaItemType ?? "").toLowerCase();
   if (kind === "game" || media.includes("game")) return true;
   if (kind === "app" || kind === "application" || media.includes("app")) return false;
-  // Keine Typ-Angabe: Titel mit Erfolgen/Gamerscore sind Spiele
+  // Keine eindeutige Typ-Angabe: nur Titel mit Erfolgen/Gamerscore gelten als Spiele (Apps haben keine)
   const ach = object(t.achievement);
-  return Number(ach.totalAchievements ?? ach.totalGamerscore ?? 0) > 0 || !kind;
+  return Number(ach.totalAchievements ?? ach.totalGamerscore ?? 0) > 0;
 }
 
 export async function syncXbox() {
@@ -152,13 +152,16 @@ export async function syncXbox() {
   let response = await request(apiKey, "/player/titleHistory");
   let data = payload(response);
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
-  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen
+  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen.
+  // Diese Liste kann unvollständig sein – daher wird in diesem Fall nichts entfernt (nur ergänzt).
+  let fromFallback = false;
   if (data.titles.length === 0) {
     const alt = await request(apiKey, "/achievements").catch(() => null);
     const altData = alt ? payload(alt) : {};
     if (Array.isArray(altData.titles) && altData.titles.length) {
       response = alt;
       data = altData;
+      fromFallback = true;
     }
   }
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
@@ -199,7 +202,8 @@ export async function syncXbox() {
         coverUrl: cover(game.displayImage), playtimeMin: playtimes.get(String(game.titleId)),
         lastPlayed: date && Number.isFinite(Date.parse(date)) ? new Date(date).toISOString() : null });
     }
-    pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
+    // Nur bei vollständiger Titel-Historie Einträge entfernen, nie bei der Ersatzquelle
+    if (!fromFallback) pruneOwnerships("xbox", new Set(games.map(g => String(g.titleId))));
     setSetting("xbox.lastSync", new Date().toISOString());
   });
   return { count: games.length, playtimeCount: playtimes.size, warning };
