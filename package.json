@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test tests/"
+    "test": "node --test \"tests/**/*.cjs\""
   },
   "dependencies": {
     "next": "16.4.5",
