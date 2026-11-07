@@ -39,6 +39,7 @@ export const SETTING_KEYS = [
   "epic.accountId",
   "epic.displayName",
   "epic.lastSync",
+  "goals",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

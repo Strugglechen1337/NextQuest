@@ -41,6 +41,8 @@ export interface Game {
   summaryDe: string | null;
   summaryDeSource?: { source: string; url?: string } | null;
   completed: boolean;
+  completedAt?: string | null;
+  createdAt?: string | null;
   status?: import("./game-status").GameStatus;
   userNote?: string | null;
   userRating?: number | null;
