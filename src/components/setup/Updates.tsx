@@ -44,7 +44,7 @@ export function Updates() {
     } catch (e) { setError(e instanceof Error ? e.message : "Anfrage fehlgeschlagen."); }
     finally { setBusy(false); }
   };
-  return <Step n="↑" title="Updates" subtitle="NextQuest aktuell halten">
+  return <Step n="↑" title="Updates" subtitle="NextQuest aktuell halten – mit Sicherung und automatischem Zurücksetzen bei Fehlern">
     {info && <>
       <p className="text-sm text-white/70">Laufende Version: <code>{info.current.slice(0, 12)}</code><br />Neueste Version: <code>{info.latest?.slice(0, 12) ?? "unbekannt"}</code></p>
       {info.error && <p className="text-sm text-white/60">{info.error}</p>}
