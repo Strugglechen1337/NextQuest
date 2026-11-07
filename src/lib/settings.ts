@@ -23,6 +23,17 @@ export const SETTING_KEYS = [
   "psn.refreshExpires",
   "psn.onlineId",
   "psn.lastSync",
+  "gog.refreshToken",
+  "gog.accessToken",
+  "gog.accessExpires",
+  "gog.userId",
+  "gog.lastSync",
+  "epic.refreshToken",
+  "epic.accessToken",
+  "epic.accessExpires",
+  "epic.accountId",
+  "epic.displayName",
+  "epic.lastSync",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -35,6 +46,10 @@ export const SECRET_KEYS: SettingKey[] = [
   "xbox.apiKey",
   "psn.refreshToken",
   "psn.accessToken",
+  "gog.refreshToken",
+  "gog.accessToken",
+  "epic.refreshToken",
+  "epic.accessToken",
 ];
 
 export function getSetting(key: SettingKey): string | null {
@@ -56,6 +71,20 @@ export function setSetting(key: SettingKey, value: string | null) {
   }
 }
 
+const INTERNAL_KEYS: string[] = [
+  "igdb.token",
+  "igdb.tokenExpires",
+  "psn.refreshToken",
+  "psn.accessToken",
+  "psn.accessExpires",
+  "gog.refreshToken",
+  "gog.accessToken",
+  "gog.accessExpires",
+  "epic.refreshToken",
+  "epic.accessToken",
+  "epic.accessExpires",
+];
+
 function mask(v: string) {
   return v.length <= 4 ? "••••" : `••••${v.slice(-4)}`;
 }
@@ -64,8 +93,8 @@ function mask(v: string) {
 export function publicSettings() {
   const out: Record<string, string | null> = {};
   for (const key of SETTING_KEYS) {
-    if (key === "igdb.token" || key === "igdb.tokenExpires") continue;
-    if (key === "psn.refreshToken" || key === "psn.accessToken" || key === "psn.accessExpires") continue;
+    // Interne Tokens nie an den Browser geben
+    if (INTERNAL_KEYS.includes(key)) continue;
     const v = getSetting(key);
     out[key] = v && SECRET_KEYS.includes(key) ? mask(v) : v;
   }

@@ -1,5 +1,7 @@
 import { testXbox } from "@/lib/xbox";
 import { handle, isMasked } from "@/lib/api";
+import { testEpic } from "@/lib/epic";
+import { testGog } from "@/lib/gog";
 import { testIgdb } from "@/lib/igdb";
 import { getSetting, setSetting } from "@/lib/settings";
 import { testSteam } from "@/lib/steam";
@@ -41,6 +43,18 @@ export async function POST(req: Request, ctx: RouteContext<"/api/test/[service]"
       setSetting("xbox.xuid", result.xuid);
       setSetting("xbox.gamertag", result.gamertag);
       return result;
+    }
+    if (service === "gog") {
+      if (!body.code?.trim()) {
+        throw new Error("Bitte die Weiterleitungs-URL oder den Anmeldecode von GOG eintragen.");
+      }
+      return testGog(body.code);
+    }
+    if (service === "epic") {
+      if (!body.code?.trim()) {
+        throw new Error("Bitte den authorizationCode oder das JSON von Epic Games eintragen.");
+      }
+      return testEpic(body.code);
     }
     throw new Error("Unbekannter Dienst");
   });

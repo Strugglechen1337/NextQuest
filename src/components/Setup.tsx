@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, runEnrich, type LibraryResponse } from "@/lib/client";
 import { A, Field, fmtDate, Guide, Step, type Msg, type StepProps } from "./setup/parts";
+import { EpicStep } from "./setup/EpicStep";
+import { GogStep } from "./setup/GogStep";
 import { Notice } from "./ui";
 import { PlayStationStep } from "./setup/PlayStationStep";
 
@@ -46,6 +48,8 @@ export function Setup() {
       <GamePassStep data={data} reload={load} />
       <XboxStep data={data} reload={load} />
       <PlayStationStep data={data} reload={load} />
+      <GogStep data={data} reload={load} />
+      <EpicStep data={data} reload={load} />
       <ComingSoon />
       <DemoStep data={data} reload={load} />
 
@@ -399,8 +403,6 @@ function GamePassStep({ data, reload }: StepProps) {
 
 function ComingSoon() {
   const items = [
-    { name: "GOG", note: "Ausbaustufe 3", color: "#86328a" },
-    { name: "Epic Games", note: "Ausbaustufe 3", color: "#4b4b4b" },
     { name: "Ubisoft Connect", note: "Keine Schnittstelle – manuell hinzufügen", color: "#0060e0" },
     { name: "Nintendo Switch", note: "Keine Schnittstelle – manuell hinzufügen", color: "#e60012" },
   ];
