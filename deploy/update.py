@@ -19,11 +19,24 @@ import monitor
 REPOSITORY = 'https://github.com/Strugglechen1337/NextQuest.git'
 
 
+def clean_env():
+    """Umgebung für Build/Tests ohne die Variablen der laufenden App.
+
+    Sonst würden Tests z. B. den echten Update-Ordner samt Wartungssperre (NEXTQUEST_UPDATE_DIR)
+    oder die echte Datenbank (DATA_DIR) sehen.
+    """
+    return {k: v for k, v in os.environ.items()
+            if not k.startswith('NEXTQUEST_') and k not in ('DATA_DIR', 'APP_PASSWORD')}
+
+
 def run_command(args, cwd=None):
     result = subprocess.run(args, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, timeout=1800, check=False)
+                            text=True, timeout=1800, check=False, env=clean_env())
     if result.returncode:
-        raise RuntimeError('Befehl fehlgeschlagen: ' + ' '.join(args[:3]))
+        # Letzte Zeilen der Ausgabe mitgeben, damit die Ursache im Protokoll der App steht
+        tail = [line for line in (result.stdout or '').splitlines() if line.strip()][-8:]
+        raise RuntimeError('Befehl fehlgeschlagen: ' + ' '.join(args[:3])
+                           + ('\n' + '\n'.join(tail) if tail else ''))
     return result.stdout.strip()
 
 
