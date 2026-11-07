@@ -38,6 +38,7 @@ interface GameRow {
   release_year: number | null;
   summary: string | null;
   summary_de: string | null;
+  summary_de_state: string | null;
   completed: number;
   enrich_state: Game["enrichState"];
 }
@@ -52,6 +53,13 @@ interface OwnershipRow {
   last_played: string | null;
   cover_url: string | null;
   source: Ownership["source"];
+}
+
+function descriptionSource(state: string | null): Game["summaryDeSource"] {
+  try {
+    const value = JSON.parse(state ?? "null");
+    return value?.source ? { source: value.source, url: value.url } : null;
+  } catch { return null; }
 }
 
 function parseList(v: string | null): string[] {
@@ -119,6 +127,7 @@ export function listGames(): Game[] {
       releaseYear: g.release_year,
       summary: g.summary,
       summaryDe: g.summary_de,
+      summaryDeSource: descriptionSource(g.summary_de_state),
       completed: !!g.completed,
       enrichState: g.enrich_state,
       ownerships: os.map((o) => ({
@@ -287,8 +296,8 @@ export function mergeGames(fromId: number, intoId: number) {
     `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)),
       session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)),
       summary_de = COALESCE(NULLIF(summary_de, ''), (SELECT summary_de FROM games WHERE id = ?)),
-      summary_de_state = NULL WHERE id = ?`,
-  ).run(fromId, fromId, fromId, intoId);
+      summary_de_state = CASE WHEN NULLIF(summary_de, '') IS NOT NULL THEN summary_de_state ELSE (SELECT summary_de_state FROM games WHERE id = ?) END WHERE id = ?`,
+  ).run(fromId, fromId, fromId, fromId, intoId);
   d.prepare("UPDATE ownerships SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
   d.prepare("DELETE FROM games WHERE id = ?").run(fromId);
 }

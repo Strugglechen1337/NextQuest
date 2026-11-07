@@ -32,6 +32,7 @@ export interface Game {
   releaseYear: number | null;
   summary: string | null;
   summaryDe: string | null;
+  summaryDeSource?: { source: string; url?: string } | null;
   completed: boolean;
   enrichState: "pending" | "done" | "notfound" | "manual";
   ownerships: Ownership[];
