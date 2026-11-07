@@ -45,14 +45,14 @@ PSN endpoint reference: [psn-api getUserTitles source](https://raw.githubusercon
 
 ## Headless Edge visual evidence
 
-Used isolated DATA_DIR `C:/Users/malle/AppData/Local/Temp/nq-status-ui-20261107`, `POST /api/demo`, and additional fixture-only review/progress/departure values. Production server port 3147. No production database was used. Edge screenshots were captured with headless=new, disable-gpu, hide-scrollbars and requested window sizes; CDP device metrics were also set to exactly 390x844 because Edge otherwise imposes a 492px minimum inner viewport. All images below were visually inspected. Edge and the test server were stopped afterward.
+Used isolated DATA_DIR `<TEMP>/nq-status-ui-20261107`, `POST /api/demo`, and additional fixture-only review/progress/departure values. Production server port 3147. No production database was used. Edge screenshots were captured with headless=new, disable-gpu, hide-scrollbars and requested window sizes; CDP device metrics were also set to exactly 390x844 because Edge otherwise imposes a 492px minimum inner viewport. All images below were visually inspected. Edge and the test server were stopped afterward.
 
-- `C:/Users/malle/AppData/Local/Temp/nq-status-mobile.png` (390x844 library)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-mobile-filter.png` (390x844 bottom sheet)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-mobile-detail.png` (390x844 journal and departure badge)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-mobile-progress.png` (390x844 platform progress)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-desktop.png` (1440x900 library)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-desktop-detail.png` (1440x900 journal)
-- `C:/Users/malle/AppData/Local/Temp/nq-status-desktop-progress.png` (1440x900 platform progress)
+- `<TEMP>/nq-status-mobile.png` (390x844 library)
+- `<TEMP>/nq-status-mobile-filter.png` (390x844 bottom sheet)
+- `<TEMP>/nq-status-mobile-detail.png` (390x844 journal and departure badge)
+- `<TEMP>/nq-status-mobile-progress.png` (390x844 platform progress)
+- `<TEMP>/nq-status-desktop.png` (1440x900 library)
+- `<TEMP>/nq-status-desktop-detail.png` (1440x900 journal)
+- `<TEMP>/nq-status-desktop-progress.png` (1440x900 platform progress)
 
 No remaining implementation work. PSN trophy matching deliberately leaves ambiguous titles without new progress instead of guessing.

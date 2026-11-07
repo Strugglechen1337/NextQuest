@@ -24,7 +24,7 @@ Neue `settings`-Schlüssel: **keine**. Keine zusätzlichen npm-Abhängigkeiten. 
 
 ## Pflichtprüfungen
 
-Ausgeführt im Worktree `D:\workspaces\ProjektohneNamen\nq-learn`, schwere Prüfungen nacheinander:
+Ausgeführt im Worktree `<REPO>\nq-learn`, schwere Prüfungen nacheinander:
 
 - `npm install` / nach Reparatur der zunächst unvollständigen Installation `npm ci --no-audit --no-fund`: erfolgreich.
 - Relevante Next.js-16.4.5-Dokumentation zu Route Handlers und Server/Client Components gelesen.
@@ -38,15 +38,15 @@ Ausgeführt im Worktree `D:\workspaces\ProjektohneNamen\nq-learn`, schwere Prüf
 
 ## UI-Nachweis
 
-Temp-Datenbank: `C:\Users\malle\AppData\Local\Temp\nq-learn-qa-20261107\data`, befüllt durch `POST /api/demo` (25 Spiele). Keine Produktionsdaten verwendet. Server auf Port 3217 und gestarteter Headless-Edge-Prozess nach Prüfung beendet.
+Temp-Datenbank: `<TEMP>\nq-learn-qa-20261107\data`, befüllt durch `POST /api/demo` (25 Spiele). Keine Produktionsdaten verwendet. Server auf Port 3217 und gestarteter Headless-Edge-Prozess nach Prüfung beendet.
 
 Headless Edge mit `--headless=new --disable-gpu --hide-scrollbars --window-size=390,844` bzw. `1440,900`, `--virtual-time-budget=10000 --screenshot=...`; anschließend interaktive Prüfung über CDP mit exakter Viewport-Emulation (Edge begrenzt die native Fenster-Mindestbreite).
 
 Visuell geprüfte maßgebliche Screenshots:
 
-- `C:\Users\malle\AppData\Local\Temp\nq-learn-qa-20261107\mobile-suggestions.png` (390×844, ohne horizontalen Überlauf).
-- `C:\Users\malle\AppData\Local\Temp\nq-learn-qa-20261107\desktop-suggestions.png` (1440×900).
-- `C:\Users\malle\AppData\Local\Temp\nq-learn-qa-20261107\desktop-detail-feedback.png` (1440×900).
+- `<TEMP>\nq-learn-qa-20261107\mobile-suggestions.png` (390×844, ohne horizontalen Überlauf).
+- `<TEMP>\nq-learn-qa-20261107\desktop-suggestions.png` (1440×900).
+- `<TEMP>\nq-learn-qa-20261107\desktop-detail-feedback.png` (1440×900).
 
 Zusätzlich: `mobile-baseline.png`, `desktop-baseline.png`, ausführbares `ui-qa.cjs` und `ui-results.json` im selben Temp-Ordner. Interaktionstest prüft sofortigen Ersatz nach 👎, gespeichertes 👍/👎 über `/api/library`, Feedback-Anzeige im Dialog und gespeicherte Rücksetzung.
 
