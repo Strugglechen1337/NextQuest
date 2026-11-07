@@ -2,6 +2,10 @@ import "server-only";
 import { db } from "./db";
 
 export const SETTING_KEYS = [
+  "jobs.last",
+  "auto.enabled",
+  "auto.time",
+  "auto.lastRun",
   "descriptions.steamRetryAt",
   "steam.apiKey",
   "steam.steamId",
@@ -73,6 +77,8 @@ export function setSetting(key: SettingKey, value: string | null) {
 }
 
 const INTERNAL_KEYS: string[] = [
+  "jobs.last",
+  "auto.lastRun",
   "descriptions.steamRetryAt",
   "igdb.token",
   "igdb.tokenExpires",
