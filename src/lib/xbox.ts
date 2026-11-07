@@ -37,7 +37,13 @@ function layers(value: unknown): unknown[] {
   const result = [value];
   for (let i = 0; i < 10; i++) {
     const data = object(value);
-    const next = data.content ?? data.data;
+    let next = data.content ?? data.data;
+    // Manche Endpunkte liefern den Inhalt als JSON-Text
+    if (typeof next === "string") {
+      try { next = JSON.parse(next); } catch { break; }
+    }
+    // Liste direkt im Inhalt → als { titles } behandeln
+    if (Array.isArray(next)) next = { titles: next };
     if (next === null || typeof next !== "object") break;
     result.push(next);
     value = next;
@@ -50,8 +56,15 @@ function payload(value: unknown) {
 }
 
 function unexpectedFormat(response: unknown): never {
-  const keys = Object.keys(object(response)).join(", ") || "keine";
-  const message = `OpenXBL-Antwort hat unerwartetes Format (Schlüssel: ${keys}).`;
+  const top = object(response);
+  const keys = Object.keys(top).join(", ") || "keine";
+  // Für die Fehlersuche: Code und Art/Schlüssel des Inhalts nennen (keine Inhalte, keine Keys)
+  const inner = top.content ?? top.data;
+  const innerInfo = inner === undefined ? "" : Array.isArray(inner) ? `, Inhalt: Liste mit ${inner.length} Einträgen`
+    : inner !== null && typeof inner === "object" ? `, Inhalt-Schlüssel: ${Object.keys(inner).slice(0, 8).join(", ") || "keine"}`
+    : `, Inhalt: ${typeof inner}${typeof inner === "string" ? ` (${inner.length} Zeichen)` : ""}`;
+  const code = top.code !== undefined ? `, Code: ${String(top.code)}` : "";
+  const message = `OpenXBL-Antwort hat unerwartetes Format (Schlüssel: ${keys}${code}${innerInfo}).`;
   console.error(message);
   throw new Error(message);
 }
