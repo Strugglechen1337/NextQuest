@@ -134,20 +134,50 @@ function minutes(response: unknown, xuid: string) {
   return result;
 }
 
+/** Spiel oder App? Typ-Angaben unterscheiden sich je nach OpenXBL-Version und Gerät. */
+function isGame(t: Record<string, unknown>): boolean {
+  const kind = String(t.type ?? t.titleType ?? "").toLowerCase();
+  const media = String(t.mediaItemType ?? "").toLowerCase();
+  if (kind === "game" || media.includes("game")) return true;
+  if (kind === "app" || kind === "application" || media.includes("app")) return false;
+  // Keine Typ-Angabe: Titel mit Erfolgen/Gamerscore sind Spiele
+  const ach = object(t.achievement);
+  return Number(ach.totalAchievements ?? ach.totalGamerscore ?? 0) > 0 || !kind;
+}
+
 export async function syncXbox() {
   const apiKey = getSetting("xbox.apiKey");
   const xuid = getSetting("xbox.xuid");
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
-  const response = await request(apiKey, "/player/titleHistory");
-  const data = payload(response);
+  let response = await request(apiKey, "/player/titleHistory");
+  let data = payload(response);
+  if (!Array.isArray(data.titles)) unexpectedFormat(response);
+  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen
+  if (data.titles.length === 0) {
+    const alt = await request(apiKey, "/achievements").catch(() => null);
+    const altData = alt ? payload(alt) : {};
+    if (Array.isArray(altData.titles) && altData.titles.length) {
+      response = alt;
+      data = altData;
+    }
+  }
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
   // Never prune from a truncated response: no continuation contract is documented.
   if (layers(response).some(layer => object(object(layer).pagingInfo).continuationToken || object(layer).continuationToken))
     throw new Error("OpenXBL hat nur einen Teil der Titel-Historie geliefert. Die vorhandene Bibliothek bleibt erhalten; bitte später erneut versuchen.");
-  const games = data.titles.map(object).filter(g =>
-    g.type === "Game" && typeof g.name === "string" && g.name.trim() && /^\d+$/.test(String(g.titleId)),
+  const titles = data.titles.map(object);
+  const games = titles.filter(g =>
+    isGame(g) && typeof g.name === "string" && g.name.trim() && /^\d+$/.test(String(g.titleId)),
   ) as unknown as Title[];
-  if (!games.length) throw new Error("OpenXBL liefert keine gestarteten Spiele. Starte ein Xbox-Spiel und prüfe die Xbox-Datenschutzeinstellungen; vorhandene Einträge bleiben erhalten.");
+  if (!games.length) {
+    // Diagnose ohne Inhalte: Anzahl und vorkommende Typ-Angaben
+    const kinds = [...new Set(titles.map(t => String(t.type ?? t.mediaItemType ?? t.titleType ?? "ohne Typ")))].slice(0, 6);
+    throw new Error(
+      titles.length
+        ? `OpenXBL liefert ${titles.length} Titel, aber keiner wurde als Spiel erkannt (Typen: ${kinds.join(", ")}).`
+        : "OpenXBL liefert keine gestarteten Spiele. Starte ein Xbox-Spiel und prüfe die Xbox-Datenschutzeinstellungen; vorhandene Einträge bleiben erhalten.",
+    );
+  }
   const playtimes = new Map<string, number>();
   let warning: string | undefined;
   // 100 titles per request, never one request per game.
