@@ -60,7 +60,7 @@ function open(): Database {
   db.exec(SCHEMA);
   // Additive Migration: vorhandene Spiele, Zuordnungen und Einstellungen bleiben erhalten.
   const columns = new Set((db.prepare("PRAGMA table_info(games)").all() as { name: string }[]).map((c) => c.name));
-  for (const column of ["keywords", "session_pref"]) {
+  for (const column of ["keywords", "session_pref", "summary_de", "summary_de_state"]) {
     if (!columns.has(column)) db.exec(`ALTER TABLE games ADD COLUMN ${column} TEXT`);
   }
   return db;

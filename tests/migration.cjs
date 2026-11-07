@@ -13,12 +13,28 @@ const dir=fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(),'nextquest-
 process.env.DATA_DIR=dir;
 const dbfile=path.join(dir,'nextquest.db');
 const fixture=new DatabaseSync(dbfile);
-fixture.exec("CREATE TABLE games(id INTEGER PRIMARY KEY, title TEXT NOT NULL, norm_title TEXT NOT NULL); INSERT INTO games VALUES(1,'fixture','fixture');");
+// The original schema without any additive migration; populated metadata and
+// credentials make accidental rewrites visible, alongside ownership/playtime.
+const originalSchema = fs.readFileSync(path.join(__dirname,'../src/lib/db.ts'),'utf8').match(/const SCHEMA = `([\s\S]*?)`;/)[1];
+fixture.exec(originalSchema);
+fixture.exec("INSERT INTO games(id,title,norm_title,igdb_id,summary,completed,enrich_state,rating,genres) VALUES(1,'fixture','fixture',42,'English description',1,'done',88,'[\"RPG\"]'); INSERT INTO settings VALUES('fixture','retained-secret'); INSERT INTO ownerships(game_id,platform,external_id,title,playtime_min,last_played) VALUES(1,'steam','292030','fixture ownership',1234,'2026-01-01');");
+const snapshot = Object.fromEntries(['games','ownerships','settings'].map(t=>[t,fixture.prepare('SELECT * FROM '+t).all()]));
 fixture.close();
 const {db,tx}=require('../src/lib/db.ts');
-const d=db();
+let d=db();
 const cols=d.prepare('PRAGMA table_info(games)').all().map(c=>c.name);
 assert(cols.includes('keywords') && cols.includes('session_pref'));
+assert(cols.includes('summary_de') && cols.includes('summary_de_state'));
+for (const [table, rows] of Object.entries(snapshot)) {
+  const names=Object.keys(rows[0]).join(',');
+  assert.deepEqual(d.prepare('SELECT '+names+' FROM '+table).all(),rows);
+}
+assert.equal(d.prepare('SELECT summary_de,summary_de_state FROM games').get().summary_de,null);
+// Reopen the module to exercise the migration a second time.
+d.close(); delete global.__nextquestDb; delete require.cache[require.resolve('../src/lib/db.ts')];
+const reopened = require('../src/lib/db.ts').db(); d=reopened;
+assert.deepEqual(reopened.prepare('PRAGMA table_info(games)').all().map(c=>c.name),cols);
+
 assert.equal(d.prepare('SELECT count(*) AS n FROM games').get().n,1);
 assert.throws(()=>tx(()=>{d.prepare("INSERT INTO games (title,norm_title) VALUES ('rollback','rollback')").run();throw Error('fixture');}));
 assert.equal(d.prepare('SELECT count(*) AS n FROM games').get().n,1);

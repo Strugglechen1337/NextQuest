@@ -3,7 +3,7 @@
 import { XboxStep } from "./setup/XboxStep";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, runEnrich, type LibraryResponse } from "@/lib/client";
+import { api, runEnrich, runDescriptions, type LibraryResponse } from "@/lib/client";
 import { A, Field, fmtDate, Guide, Step, type Msg, type StepProps } from "./setup/parts";
 import { EpicStep } from "./setup/EpicStep";
 import { GogStep } from "./setup/GogStep";
@@ -99,6 +99,22 @@ function IgdbStep({ data, reload }: StepProps) {
     }
   };
 
+  const descriptions = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await runDescriptions((done, remaining) => setProgress({ done, remaining }));
+      setMsg({ kind: "ok", text: "Deutsche Beschreibungen wurden geladen. Wo kein Text verfügbar ist, bleibt die englische Beschreibung." });
+      await reload();
+    } catch (e) {
+      setMsg({ kind: "error", text: (e as Error).message });
+      await reload();
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  };
+
   const enrich = async (retry: boolean | "refresh" = false) => {
     setBusy(true);
     setMsg(null);
@@ -168,6 +184,9 @@ function IgdbStep({ data, reload }: StepProps) {
           </>
         )}
       </div>
+      <button type="button" className="btn-ghost" disabled={busy} onClick={descriptions}>
+        Deutsche Beschreibungen laden
+      </button>
       {progress && (
         <div className="space-y-1">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">

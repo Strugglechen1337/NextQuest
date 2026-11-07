@@ -143,6 +143,24 @@ async function steamToIgdb(appIds: string[]): Promise<Map<string, number>> {
   return map;
 }
 
+/** Steam-AppIDs für bereits zugeordnete Spiele anderer Plattformen. */
+export async function igdbToSteam(ids: number[]): Promise<Map<number, string[]>> {
+  const map = new Map<number, string[]>();
+  if (!ids.length) return map;
+  let rows: { game: number; uid: string }[];
+  const fields = `fields game,uid; where game = (${ids.join(",")}) & `;
+  try {
+    rows = await query("external_games", `${fields}external_game_source = 1; limit 500;`);
+  } catch {
+    rows = await query("external_games", `${fields}category = 1; limit 500;`);
+  }
+  for (const row of rows) {
+    if (!/^\d+$/.test(row.uid)) continue;
+    map.set(row.game, [...(map.get(row.game) ?? []), row.uid]);
+  }
+  return map;
+}
+
 interface PendingRow {
   id: number;
   title: string;

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "./db";
 
 export const SETTING_KEYS = [
+  "descriptions.steamRetryAt",
   "steam.apiKey",
   "steam.steamId",
   "steam.lastSync",
@@ -72,6 +73,7 @@ export function setSetting(key: SettingKey, value: string | null) {
 }
 
 const INTERNAL_KEYS: string[] = [
+  "descriptions.steamRetryAt",
   "igdb.token",
   "igdb.tokenExpires",
   "psn.refreshToken",

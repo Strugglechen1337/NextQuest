@@ -1,3 +1,4 @@
+import { descriptionsBatch } from "@/lib/descriptions";
 import { syncXbox } from "@/lib/xbox";
 import { handle } from "@/lib/api";
 import { syncEpic } from "@/lib/epic";
@@ -23,6 +24,8 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]"
         return syncSteam();
       case "gamepass":
         return syncGamePass();
+      case "descriptions":
+        return descriptionsBatch();
       case "igdb":
         return enrichBatch(40);
       case "igdb-refresh":
