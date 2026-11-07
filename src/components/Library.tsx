@@ -15,6 +15,7 @@ import { PLATFORM_ORDER, PLATFORMS, type PlatformId } from "@/lib/platforms";
 import { formatMinutes } from "@/lib/suggest";
 import type { Game } from "@/lib/types";
 import { AddGameDialog } from "./AddGameDialog";
+import { ContinueRow } from "./ContinueRow";
 import { GameCard } from "./GameCard";
 import { GameDetail } from "./GameDetail";
 import { SuggestPanel } from "./SuggestPanel";
@@ -212,6 +213,8 @@ export function Library() {
           onClick={gamePassOn ? () => setOwnership("gamepass") : undefined}
         />
       </section>
+
+      <ContinueRow games={games} onOpen={(g) => setSelected(g.id)} />
 
       <SuggestPanel
         games={suggestGames}

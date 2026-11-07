@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 export function AppNav() {
   const pathname = usePathname();
   const isSetup = pathname?.startsWith("/setup") ?? false;
-  const isLibrary = !isSetup;
+  const isStats = pathname?.startsWith("/stats") ?? false;
+  const isLibrary = !isSetup && !isStats;
 
   return (
     <>
@@ -42,6 +43,20 @@ export function AppNav() {
                 <rect x="14" y="14" width="7" height="7" rx="1.5" />
               </svg>
               Bibliothek
+            </Link>
+            <Link
+              href="/stats"
+              aria-current={isStats ? "page" : undefined}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 ${
+                isStats
+                  ? "border-violet-400/40 bg-violet-500/20 text-white"
+                  : "border-transparent text-white/70 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <svg className="h-4 w-4 opacity-85" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 20V11M10 20V5M16 20v-8M21 20H3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Statistik
             </Link>
             <Link
               href="/setup"
@@ -85,6 +100,25 @@ export function AppNav() {
             </svg>
           </span>
           <span>Bibliothek</span>
+        </Link>
+
+        <Link
+          href="/stats"
+          aria-current={isStats ? "page" : undefined}
+          className={`flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
+            isStats ? "text-white" : "text-white/60 hover:text-white"
+          }`}
+        >
+          <span
+            className={`flex h-7 w-12 items-center justify-center rounded-full transition ${
+              isStats ? "bg-violet-500/25 text-violet-300" : ""
+            }`}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 20V11M10 20V5M16 20v-8M21 20H3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span>Statistik</span>
         </Link>
 
         <Link
