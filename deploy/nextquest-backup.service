@@ -3,7 +3,7 @@ Description=NextQuest SQLite online backup
 
 [Service]
 Type=oneshot
-EnvironmentFile=%h/.config/nextquest/ops.env
+EnvironmentFile=%h/.config/nextquest/deploy.env
 ExecStart=/usr/bin/python3 %h/.local/lib/nextquest-ops/backup.py
 UMask=0077
 NoNewPrivileges=yes

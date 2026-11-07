@@ -18,12 +18,12 @@ class PinGateTests(unittest.TestCase):
         }
         self.host = "nextquest.test:7916"
         self.origin = "http://" + self.host
-        app = create_app(self.auth, rate_path=Path(self.temp.name) / "rate.sqlite3", hosts={self.host})
+        app = create_app(self.auth, rate_path=Path(self.temp.name) / "rate.sqlite3", hosts={self.host}, lan="10.42.0.0/24")
         app.testing = True
         self.client = app.test_client()
 
     def verify(self, **extra):
-        headers = {"Host": self.host, "X-Client-IP": "192.168.2.50", "X-Forwarded-Uri": "/", **extra}
+        headers = {"Host": self.host, "X-Client-IP": "10.42.0.50", "X-Forwarded-Uri": "/", **extra}
         return self.client.get("/_auth/verify", headers=headers)
 
     def login(self, pin, **extra):
@@ -56,9 +56,15 @@ class PinGateTests(unittest.TestCase):
         self.assertEqual(self.verify(Origin="http://evil.example").status_code, 403)
         self.assertEqual(self.verify(**{"Sec-Fetch-Site": "cross-site"}).status_code, 403)
 
+    def test_empty_host_or_invalid_network_rejected(self):
+        with self.assertRaises(ValueError):
+            create_app(self.auth, hosts=set(), lan="10.42.0.0/24")
+        with self.assertRaises(ValueError):
+            create_app(self.auth, hosts={self.host}, lan="invalid")
+
     def test_open_redirect_is_removed(self):
         response = self.client.get("/_auth/verify", headers={
-            "Host": self.host, "X-Client-IP": "192.168.2.50",
+            "Host": self.host, "X-Client-IP": "10.42.0.50",
             "X-Forwarded-Uri": "//evil.example/path",
         })
         self.assertEqual(response.status_code, 302)
@@ -66,7 +72,7 @@ class PinGateTests(unittest.TestCase):
         self.assertNotIn("evil.example", response.headers["Location"])
 
     def test_write_requires_same_origin(self):
-        headers = {"Host": self.host, "X-Client-IP": "192.168.2.50",
+        headers = {"Host": self.host, "X-Client-IP": "10.42.0.50",
                    "X-Forwarded-Method": "POST", "X-Forwarded-Uri": "/api/v1/spool"}
         self.assertEqual(self.client.get("/_auth/verify", headers=headers).status_code, 403)
         self.assertEqual(self.client.get("/_auth/verify", headers={**headers, "Origin": self.origin}).status_code, 302)

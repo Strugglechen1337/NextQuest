@@ -51,3 +51,7 @@ next-env.d.ts
 /backups/
 /.update.lock/
 /.update-skip
+/deploy/state/
+/deploy/__pycache__/
+/deploy/tests/__pycache__/
+/deploy/deploy.env

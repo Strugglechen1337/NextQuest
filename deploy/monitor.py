@@ -15,8 +15,8 @@ import urllib.request
 from backup import BACKUPS, NAME
 
 BASE = os.environ.get('NEXTQUEST_URL', 'http://127.0.0.1:7918').rstrip('/')
-GATE_HOST = '192.168.2.213'
-GATE_PORT = 7916
+GATE_HOST = os.environ.get('NEXTQUEST_GATE_HOST', '')
+GATE_PORT = int(os.environ.get('NEXTQUEST_GATE_PORT', '7916'))
 SERVICES = ('nextquest', 'nextquest-gate', 'nextquest-proxy')
 STATE_DIR = Path.home() / '.local/state/nextquest-ops'
 UTC = dt.timezone.utc
@@ -136,6 +136,8 @@ def availability():
                 alerts.append(service + ': ' + (state or 'Status fehlt'))
         except (OSError, subprocess.TimeoutExpired) as exc:
             alerts.append(service + ': Statusabfrage fehlgeschlagen (' + type(exc).__name__ + ')')
+    if not GATE_HOST:
+        return alerts + ['Gate-Host nicht konfiguriert']
     connection = http.client.HTTPConnection(GATE_HOST, GATE_PORT, timeout=5)
     try:
         connection.request('GET', '/')
