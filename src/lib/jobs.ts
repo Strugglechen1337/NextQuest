@@ -11,6 +11,7 @@ import { syncGog } from "./gog";
 import { syncEpic } from "./epic";
 import { syncGamePass } from "./gamepass";
 import type { Job, JobKind, JobsStatus } from "./job-types";
+import { assertNoMaintenance, maintenanceActive } from "./maintenance";
 
 const globalJobs = globalThis as typeof globalThis & { nextQuestJobs?: { running: Job | null; timer?: ReturnType<typeof setInterval> } };
 const state = globalJobs.nextQuestJobs ??= { running: null };
@@ -103,6 +104,8 @@ async function execute(job: Job) {
 
 export function startJob(kind: JobKind): Job {
   if (state.running) return state.running;
+  // Während eines Server-Updates keine neuen Jobs (siehe maintenance.ts)
+  assertNoMaintenance();
   const job: Job = { id: randomUUID(), kind, startedAt: new Date().toISOString(), step: "Start", done: 0, remaining: 0, errors: {}, platforms: {} };
   state.running = job;
   // Detach execution from the request and its AbortSignal, retaining single-flight
@@ -112,6 +115,9 @@ export function startJob(kind: JobKind): Job {
 }
 
 export function schedulerTick(now = new Date()) {
+  // Während eines Updates nichts starten; der fällige Lauf wird nach dem Update nachgeholt.
+  // Alter der Sperre immer gegen die echte Uhrzeit prüfen, nicht gegen den simulierten Zeitpunkt
+  if (maintenanceActive()) return;
   const status = jobsStatus(now);
   // Erster Start (noch nie gelaufen): nur Startpunkt merken, nicht sofort alles abgleichen.
   // Der erste automatische Lauf kommt zur nächsten eingestellten Uhrzeit.
