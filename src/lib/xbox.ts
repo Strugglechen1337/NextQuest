@@ -149,8 +149,18 @@ export async function syncXbox() {
   const apiKey = getSetting("xbox.apiKey");
   const xuid = getSetting("xbox.xuid");
   if (!apiKey || !xuid) throw new Error("Xbox ist noch nicht eingerichtet.");
-  const response = await request(apiKey, "/player/titleHistory");
-  const data = payload(response);
+  let response = await request(apiKey, "/player/titleHistory");
+  let data = payload(response);
+  if (!Array.isArray(data.titles)) unexpectedFormat(response);
+  // Leere Titel-Historie (z. B. wegen Datenschutz-Freigabe): Erfolgs-Liste als zweite Quelle versuchen
+  if (data.titles.length === 0) {
+    const alt = await request(apiKey, "/achievements").catch(() => null);
+    const altData = alt ? payload(alt) : {};
+    if (Array.isArray(altData.titles) && altData.titles.length) {
+      response = alt;
+      data = altData;
+    }
+  }
   if (!Array.isArray(data.titles)) unexpectedFormat(response);
   // Never prune from a truncated response: no continuation contract is documented.
   if (layers(response).some(layer => object(object(layer).pagingInfo).continuationToken || object(layer).continuationToken))
