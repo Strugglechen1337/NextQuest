@@ -83,7 +83,7 @@ export function AppNav() {
         <Link
           href="/"
           aria-current={isLibrary ? "page" : undefined}
-          className={`flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
+          className={`flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
             isLibrary ? "text-white" : "text-white/60 hover:text-white"
           }`}
         >
@@ -105,7 +105,7 @@ export function AppNav() {
         <Link
           href="/stats"
           aria-current={isStats ? "page" : undefined}
-          className={`flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
+          className={`flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
             isStats ? "text-white" : "text-white/60 hover:text-white"
           }`}
         >
@@ -124,7 +124,7 @@ export function AppNav() {
         <Link
           href="/setup"
           aria-current={isSetup ? "page" : undefined}
-          className={`flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
+          className={`flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/80 ${
             isSetup ? "text-white" : "text-white/60 hover:text-white"
           }`}
         >
