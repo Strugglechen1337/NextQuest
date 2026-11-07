@@ -13,12 +13,16 @@ export const SETTING_KEYS = [
   "gamepass.catalogs",
   "gamepass.market",
   "gamepass.lastSync",
+  "xbox.apiKey",
+  "xbox.gamertag",
+  "xbox.xuid",
+  "xbox.lastSync",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 /** Geheimnisse, die nie im Klartext an den Browser gehen. */
-export const SECRET_KEYS: SettingKey[] = ["steam.apiKey", "igdb.clientSecret", "igdb.token"];
+export const SECRET_KEYS: SettingKey[] = ["steam.apiKey", "igdb.clientSecret", "igdb.token", "xbox.apiKey"];
 
 export function getSetting(key: SettingKey): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as

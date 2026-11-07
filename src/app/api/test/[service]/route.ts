@@ -1,3 +1,4 @@
+import { testXbox } from "@/lib/xbox";
 import { handle, isMasked } from "@/lib/api";
 import { testIgdb } from "@/lib/igdb";
 import { getSetting, setSetting } from "@/lib/settings";
@@ -25,6 +26,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/test/[service]"
       setSetting("igdb.clientId", clientId);
       setSetting("igdb.clientSecret", secret);
       setSetting("igdb.token", null);
+      return result;
+    }
+    if (service === "xbox") {
+      const apiKey = isMasked(body.apiKey) ? getSetting("xbox.apiKey") : body.apiKey?.trim();
+      if (!apiKey) throw new Error("Bitte den persönlichen OpenXBL-API-Key eintragen.");
+      const result = await testXbox(apiKey);
+      setSetting("xbox.apiKey", apiKey);
+      setSetting("xbox.xuid", result.xuid);
+      setSetting("xbox.gamertag", result.gamertag);
       return result;
     }
     throw new Error("Unbekannter Dienst");
