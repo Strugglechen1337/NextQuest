@@ -31,6 +31,7 @@ export interface Game {
   ttbCompletely: number | null;
   releaseYear: number | null;
   summary: string | null;
+  summaryDe: string | null;
   completed: boolean;
   enrichState: "pending" | "done" | "notfound" | "manual";
   ownerships: Ownership[];

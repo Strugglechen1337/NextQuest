@@ -36,3 +36,15 @@ export async function runEnrich(onProgress: (done: number, remaining: number) =>
     if (r.remaining === 0 || r.processed === 0) return done;
   }
 }
+
+/** Lädt deutsche Texte und stoppt bei Drosselung bis zum nächsten manuellen Aufruf. */
+export async function runDescriptions(onProgress: (done: number, remaining: number) => void) {
+  let done = 0;
+  for (;;) {
+    const r = await api<{ processed: number; remaining: number; rateLimited: boolean }>("/api/sync/descriptions", { body: {} });
+    done += r.processed;
+    onProgress(done, r.remaining);
+    if (r.rateLimited) throw new Error("Steam-Anfragelimit erreicht. Bereits geladene Texte sind gespeichert. Bitte in mindestens fünf Minuten erneut starten.");
+    if (!r.remaining || !r.processed) return done;
+  }
+}

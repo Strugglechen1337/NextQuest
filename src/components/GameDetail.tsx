@@ -143,7 +143,7 @@ export function GameDetail({
             </select>
           </label>
 
-          {game.summary && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summary}</p>}
+          {(game.summaryDe || game.summary) && <p className="line-clamp-4 text-sm leading-relaxed text-white/75">{game.summaryDe || game.summary}{!game.summaryDe && <span className="text-xs text-white/45"> (englisch)</span>}</p>}
 
           <div>
             <div className="mb-1.5 text-xs uppercase tracking-wide text-white/45">Wo du es hast</div>

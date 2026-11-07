@@ -37,6 +37,7 @@ interface GameRow {
   ttb_completely: number | null;
   release_year: number | null;
   summary: string | null;
+  summary_de: string | null;
   completed: number;
   enrich_state: Game["enrichState"];
 }
@@ -117,6 +118,7 @@ export function listGames(): Game[] {
       ttbCompletely: g.ttb_completely,
       releaseYear: g.release_year,
       summary: g.summary,
+      summaryDe: g.summary_de,
       completed: !!g.completed,
       enrichState: g.enrich_state,
       ownerships: os.map((o) => ({
@@ -283,8 +285,10 @@ export function mergeGames(fromId: number, intoId: number) {
   const d = db();
   d.prepare(
     `UPDATE games SET completed = MAX(completed, (SELECT completed FROM games WHERE id = ?)),
-      session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)) WHERE id = ?`,
-  ).run(fromId, fromId, intoId);
+      session_pref = COALESCE(session_pref, (SELECT session_pref FROM games WHERE id = ?)),
+      summary_de = COALESCE(NULLIF(summary_de, ''), (SELECT summary_de FROM games WHERE id = ?)),
+      summary_de_state = NULL WHERE id = ?`,
+  ).run(fromId, fromId, fromId, intoId);
   d.prepare("UPDATE ownerships SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
   d.prepare("DELETE FROM games WHERE id = ?").run(fromId);
 }
