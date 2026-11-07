@@ -1,5 +1,7 @@
 import { handle } from "@/lib/api";
+import { syncEpic } from "@/lib/epic";
 import { syncGamePass } from "@/lib/gamepass";
+import { syncGog } from "@/lib/gog";
 import { enrichBatch, resetNotFound } from "@/lib/igdb";
 import { deletePlatform } from "@/lib/library";
 import { setSetting } from "@/lib/settings";
@@ -23,6 +25,27 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]"
         setSetting("steam.steamId", null);
         setSetting("steam.lastSync", null);
         deletePlatform("steam");
+        return { ok: true };
+      case "gog":
+        return syncGog();
+      case "gog-disconnect":
+        setSetting("gog.refreshToken", null);
+        setSetting("gog.accessToken", null);
+        setSetting("gog.accessExpires", null);
+        setSetting("gog.userId", null);
+        setSetting("gog.lastSync", null);
+        deletePlatform("gog");
+        return { ok: true };
+      case "epic":
+        return syncEpic();
+      case "epic-disconnect":
+        setSetting("epic.refreshToken", null);
+        setSetting("epic.accessToken", null);
+        setSetting("epic.accessExpires", null);
+        setSetting("epic.accountId", null);
+        setSetting("epic.displayName", null);
+        setSetting("epic.lastSync", null);
+        deletePlatform("epic");
         return { ok: true };
       default:
         throw new Error("Unbekannte Quelle");

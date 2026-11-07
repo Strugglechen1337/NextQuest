@@ -13,12 +13,31 @@ export const SETTING_KEYS = [
   "gamepass.catalogs",
   "gamepass.market",
   "gamepass.lastSync",
+  "gog.refreshToken",
+  "gog.accessToken",
+  "gog.accessExpires",
+  "gog.userId",
+  "gog.lastSync",
+  "epic.refreshToken",
+  "epic.accessToken",
+  "epic.accessExpires",
+  "epic.accountId",
+  "epic.displayName",
+  "epic.lastSync",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 /** Geheimnisse, die nie im Klartext an den Browser gehen. */
-export const SECRET_KEYS: SettingKey[] = ["steam.apiKey", "igdb.clientSecret", "igdb.token"];
+export const SECRET_KEYS: SettingKey[] = [
+  "steam.apiKey",
+  "igdb.clientSecret",
+  "igdb.token",
+  "gog.refreshToken",
+  "gog.accessToken",
+  "epic.refreshToken",
+  "epic.accessToken",
+];
 
 export function getSetting(key: SettingKey): string | null {
   const row = db().prepare("SELECT value FROM settings WHERE key = ?").get(key) as
@@ -47,7 +66,17 @@ function mask(v: string) {
 export function publicSettings() {
   const out: Record<string, string | null> = {};
   for (const key of SETTING_KEYS) {
-    if (key === "igdb.token" || key === "igdb.tokenExpires") continue;
+    if (
+      key === "igdb.token" ||
+      key === "igdb.tokenExpires" ||
+      key === "gog.refreshToken" ||
+      key === "gog.accessToken" ||
+      key === "gog.accessExpires" ||
+      key === "epic.refreshToken" ||
+      key === "epic.accessToken" ||
+      key === "epic.accessExpires"
+    )
+      continue;
     const v = getSetting(key);
     out[key] = v && SECRET_KEYS.includes(key) ? mask(v) : v;
   }
