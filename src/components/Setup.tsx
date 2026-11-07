@@ -25,21 +25,21 @@ export function Setup() {
   const done = [data.igdb, steamOk, gpOk].filter(Boolean).length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-[var(--space-section)]">
       <header className="space-y-3">
-        <h1 className="text-3xl font-bold tracking-tight">Einrichtung</h1>
-        <p className="text-white/60">
+        <h1 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight">Einrichtung</h1>
+        <p className="text-sm text-white/65 sm:text-base">
           Verbinde deine Plattformen Schritt für Schritt. Alles ist kostenlos, und deine Zugangsdaten bleiben auf
           deinem Server – sie werden nirgendwo hochgeladen.
         </p>
-        <div className="flex items-center gap-3">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="h-2 min-w-36 flex-1 overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-500 to-emerald-400 transition-all"
               style={{ width: `${(done / 3) * 100}%` }}
             />
           </div>
-          <span className="text-sm text-white/60">{done} von 3 Grundschritten</span>
+          <span className="shrink-0 text-xs text-white/65 sm:text-sm">{done} von 3 Grundschritten</span>
         </div>
       </header>
 
@@ -54,7 +54,7 @@ export function Setup() {
       <DemoStep data={data} reload={load} />
 
       <div className="text-center">
-        <Link href="/" className="btn-primary px-6 py-2.5">
+        <Link href="/" className="btn-primary w-full px-6 py-2.5 sm:w-auto">
           Zur Bibliothek →
         </Link>
       </div>
@@ -70,7 +70,7 @@ function VersionInfo() {
   }, []);
   if (!v) return null;
   return (
-    <p className="text-center text-xs text-white/30">
+    <p className="text-center text-xs text-white/35">
       NextQuest {v.version} · {v.commit}
       {v.builtAt ? ` · gebaut ${fmtDate(v.builtAt)}` : ""}
     </p>
@@ -145,15 +145,21 @@ function IgdbStep({ data, reload }: StepProps) {
         <Field label="Client-Secret" value={secret} onChange={setSecret} placeholder="••••••••" secret />
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className="btn-primary" disabled={busy || !clientId || !secret} onClick={test}>
+        <button type="button" className="btn-primary" disabled={busy || !clientId || !secret} onClick={test}>
           Testen & speichern
         </button>
         {data.igdb && (
           <>
-            <button className="btn-ghost" disabled={busy} onClick={() => enrich(false)}>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => enrich(false)}>
               Spieldaten abrufen {data.stats.pendingEnrich ? `(${data.stats.pendingEnrich} offen)` : ""}
             </button>
-            <button className="btn-ghost" disabled={busy} onClick={() => enrich(true)} title="Nicht gefundene erneut suchen">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={busy}
+              onClick={() => enrich(true)}
+              title="Nicht gefundene erneut suchen"
+            >
               Nicht gefundene erneut suchen
             </button>
           </>
@@ -167,7 +173,7 @@ function IgdbStep({ data, reload }: StepProps) {
               style={{ width: `${(progress.done / Math.max(progress.done + progress.remaining, 1)) * 100}%` }}
             />
           </div>
-          <div className="text-xs text-white/50">
+          <div className="text-xs text-white/55">
             {progress.done} erledigt, {progress.remaining} offen…
           </div>
         </div>
@@ -290,22 +296,22 @@ function SteamStep({ data, reload }: StepProps) {
         />
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className="btn-primary" disabled={busy || !apiKey || !profile} onClick={test}>
+        <button type="button" className="btn-primary" disabled={busy || !apiKey || !profile} onClick={test}>
           Testen & importieren
         </button>
         {s["steam.steamId"] && (
           <>
-            <button className="btn-ghost" disabled={busy} onClick={resync}>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={resync}>
               ↻ Jetzt synchronisieren
             </button>
-            <button className="btn-danger" disabled={busy} onClick={disconnect}>
+            <button type="button" className="btn-danger" disabled={busy} onClick={disconnect}>
               Trennen
             </button>
           </>
         )}
       </div>
       {!data.igdb && (
-        <div className="text-xs text-white/40">
+        <div className="text-xs text-white/45">
           Tipp: Richte zuerst die Spieldatenbank (Schritt 1) ein, dann kommen Spieldauer und Bewertungen gleich mit.
         </div>
       )}
@@ -360,15 +366,15 @@ function GamePassStep({ data, reload }: StepProps) {
       }
       ok={s["gamepass.enabled"] === "1" && !!s["gamepass.lastSync"]}
     >
-      <p className="text-sm text-white/70">
+      <p className="text-sm leading-relaxed text-white/75">
         NextQuest lädt den aktuellen Game-Pass-Katalog direkt von Microsoft. Spiele, die du ohnehin besitzt, bekommen
         ein Game-Pass-Abzeichen, alle anderen kannst du in der Bibliothek ein- oder ausblenden. Fliegt ein Spiel aus
         dem Game Pass, verschwindet es beim nächsten Abgleich automatisch.
       </p>
-      <label className="flex cursor-pointer items-center gap-3">
+      <label className="flex min-h-11 cursor-pointer items-center gap-3">
         <input
           type="checkbox"
-          className="h-4 w-4 accent-violet-500"
+          className="h-5 w-5 shrink-0 accent-violet-500"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
         />
@@ -376,16 +382,26 @@ function GamePassStep({ data, reload }: StepProps) {
       </label>
       {enabled && (
         <div className="flex flex-wrap items-center gap-2">
-          <button className={`chip ${catalogs.includes("pc") ? "chip-on" : ""}`} onClick={() => toggleCatalog("pc")}>
+          <button
+            type="button"
+            className={`chip ${catalogs.includes("pc") ? "chip-on" : ""}`}
+            onClick={() => toggleCatalog("pc")}
+          >
             PC Game Pass
           </button>
           <button
+            type="button"
             className={`chip ${catalogs.includes("console") ? "chip-on" : ""}`}
             onClick={() => toggleCatalog("console")}
           >
             Konsole
           </button>
-          <select className="input ml-2 w-auto py-1" value={market} onChange={(e) => setMarket(e.target.value)}>
+          <select
+            className="input w-auto py-1 sm:ml-2"
+            aria-label="Markt auswählen"
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
+          >
             <option value="DE">Deutschland</option>
             <option value="AT">Österreich</option>
             <option value="CH">Schweiz</option>
@@ -393,7 +409,7 @@ function GamePassStep({ data, reload }: StepProps) {
           </select>
         </div>
       )}
-      <button className="btn-primary" disabled={busy || (enabled && catalogs.length === 0)} onClick={save}>
+      <button type="button" className="btn-primary" disabled={busy || (enabled && catalogs.length === 0)} onClick={save}>
         {enabled ? "Speichern & Katalog laden" : "Speichern"}
       </button>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
@@ -411,15 +427,15 @@ function ComingSoon() {
       <div className="grid gap-2 sm:grid-cols-2">
         {items.map((i) => (
           <div key={i.name} className="flex items-center gap-3 rounded-xl border border-white/10 p-3">
-            <span className="h-8 w-1.5 rounded-full" style={{ background: i.color }} />
-            <div>
+            <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: i.color }} />
+            <div className="min-w-0">
               <div className="text-sm font-medium">{i.name}</div>
-              <div className="text-xs text-white/45">{i.note}</div>
+              <div className="text-xs text-white/50">{i.note}</div>
             </div>
           </div>
         ))}
       </div>
-      <p className="text-sm text-white/60">
+      <p className="text-sm leading-relaxed text-white/65">
         Bis dahin kannst du Spiele dieser Plattformen in der Bibliothek über <b>„＋ Spiel hinzufügen“</b> eintragen –
         sie werden automatisch mit deinen anderen Exemplaren zusammengeführt.
       </p>
@@ -438,16 +454,16 @@ function DemoStep({ data, reload }: StepProps) {
   };
   return (
     <Step n="★" title="Demo-Daten" subtitle="Zum Ausprobieren, ohne etwas einzurichten">
-      <p className="text-sm text-white/70">
+      <p className="text-sm leading-relaxed text-white/75">
         25 Beispielspiele auf verschiedenen Plattformen – inklusive doppelter Spiele und Game Pass. Lassen sich
         jederzeit wieder entfernen, ohne deine echten Daten anzufassen.
       </p>
-      <div className="flex gap-2">
-        <button className="btn-ghost" disabled={busy} onClick={() => act("POST")}>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => act("POST")}>
           {hasDemo ? "Demo-Daten neu laden" : "Demo-Daten laden"}
         </button>
         {hasDemo && (
-          <button className="btn-danger" disabled={busy} onClick={() => act("DELETE")}>
+          <button type="button" className="btn-danger" disabled={busy} onClick={() => act("DELETE")}>
             Demo-Daten entfernen
           </button>
         )}
