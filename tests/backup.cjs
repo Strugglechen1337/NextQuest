@@ -16,6 +16,7 @@ const { runtime, updateMode } = require('../src/lib/runtime.ts');
 test('runtime and update presentation', () => {
   for (const value of ['linux', 'docker', 'windows']) assert.equal(runtime(value), value);
   assert.equal(runtime('unexpected'), 'dev');
+  assert.equal(runtime(undefined, '/srv/update'), 'linux'); // Linux-Server mit älterer Dienstdatei
   assert.equal(updateMode('linux').showUpdater, true);
   for (const value of ['docker', 'windows', 'dev']) assert.equal(updateMode(value).showUpdater, false);
   assert.match(updateMode('docker').message, /docker compose pull/);
