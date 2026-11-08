@@ -21,10 +21,21 @@ jobs:
         shell: pwsh
         run: npm version "${env:GITHUB_REF_NAME}" --no-git-tag-version --allow-same-version
         working-directory: desktop
-      - name: Build and publish
+      - name: Build installer
         shell: pwsh
-        run: npm run dist -- --publish always
+        run: npm run dist -- --publish never
         working-directory: desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXTQUEST_COMMIT: ${{ github.sha }}
+      - name: Upload release assets
+        shell: pwsh
+        working-directory: desktop/dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = @(Get-ChildItem -File | Where-Object { $_.Name -like 'NextQuest-Setup-*.exe' -or $_.Name -like 'NextQuest-Setup-*.exe.blockmap' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.Name })
+          if ($files.Count -lt 3) { throw "Erwartete Setup, Blockmap und latest.yml, gefunden: $($files -join ', ')" }
+          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -ne 0) { gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --title "NextQuest $env:GITHUB_REF_NAME" --generate-notes }
+          gh release upload "$env:GITHUB_REF_NAME" $files --repo "$env:GITHUB_REPOSITORY" --clobber
+          gh release edit "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --draft=false
