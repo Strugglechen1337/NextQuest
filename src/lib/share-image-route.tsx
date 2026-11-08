@@ -9,7 +9,7 @@ import {
   getShareImageDimensions,
 } from "@/lib/share-image";
 import { formatMinutes } from "@/lib/suggest";
-import { computeYearReview, type PlaytimeSnapshotRow } from "@/lib/year-review";
+import { computeYearReview, type PlaytimeSnapshotRow, type AchievementUnlockRow } from "@/lib/year-review";
 
 export async function GET(req: Request) {
   await connection();
@@ -26,11 +26,13 @@ export async function GET(req: Request) {
   const snapshots = db()
     .prepare("SELECT id, game_id, platform, taken_at, playtime_min FROM playtime_snapshots ORDER BY id ASC")
     .all() as unknown as PlaytimeSnapshotRow[];
+  const unlocks = db().prepare("SELECT game_id, platform, external_id, unlocked_at FROM achievement_unlocks").all() as unknown as AchievementUnlockRow[];
 
   const review = computeYearReview(
     games,
     snapshots,
     requestedYear && Number.isInteger(requestedYear) ? requestedYear : undefined,
+    new Date(), unlocks,
   );
 
   const collageTargetCount = isStory ? 6 : 4;
@@ -49,12 +51,8 @@ export async function GET(req: Request) {
     );
   }
 
-  const playtimeTitle =
-    review.playtimeMode === "snapshots" ? `Spielzeit ${review.year}` : "Spielzeit (Gesamt)";
-  const playtimeSub =
-    review.playtimeMode === "snapshots"
-      ? `Zuwachs im Jahr ${review.year}`
-      : `${review.activeGamesCount} aktive Spiele`;
+  const playtimeTitle = `Spielzeit ${review.year}`;
+  const playtimeSub = review.playtimeSource;
 
   const mostPlayed = review.mostPlayedGame;
   const mostPlayedCover = mostPlayed ? (coverMap.get(mostPlayed.game.id) ?? null) : null;
@@ -231,7 +229,7 @@ export async function GET(req: Request) {
                 marginTop: 6,
               }}
             >
-              {formatMinutes(review.playtimeMin)}
+              {review.playtimeSource === "unbekannt" ? "Unbekannt" : `${review.playtimeSource === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(review.playtimeMin)}`}
             </span>
             <span style={{ fontSize: isStory ? 18 : 14, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
               {playtimeSub}
@@ -313,7 +311,7 @@ export async function GET(req: Request) {
             </span>
             <span style={{ fontSize: isStory ? 18 : 14, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
               {review.topGenre
-                ? `${formatMinutes(review.topGenre.playtimeMin)} · ${review.topGenre.gameCount} Spiele`
+                ? `${review.topGenre.source === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(review.topGenre.playtimeMin)} · ${review.topGenre.gameCount} Spiele`
                 : "Quer durch die Bibliothek"}
             </span>
           </div>
@@ -354,7 +352,7 @@ export async function GET(req: Request) {
             </span>
             <span style={{ fontSize: isStory ? 18 : 14, color: "rgba(255,255,255,0.65)", marginTop: 4 }}>
               {review.topPlatform
-                ? `${formatMinutes(review.topPlatform.playtimeMin)} (${review.topPlatform.sharePercent} %)`
+                ? `${review.topPlatform.source === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(review.topPlatform.playtimeMin)} (${review.topPlatform.sharePercent} %)`
                 : `${review.platforms.length} Plattformen`}
             </span>
           </div>
@@ -437,7 +435,7 @@ export async function GET(req: Request) {
                     color: "#34d399",
                   }}
                 >
-                  {`${formatMinutes(mostPlayed.playtimeMin)} ${mostPlayed.isSnapshotDelta ? `im Jahr ${review.year}` : "gespielt"}`}
+                  {`${mostPlayed.source === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(mostPlayed.playtimeMin)} im Jahr ${review.year}`}
                 </span>
               </div>
             </div>

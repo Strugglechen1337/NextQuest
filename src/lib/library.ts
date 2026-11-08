@@ -1,5 +1,6 @@
 import "server-only";
 import { db, tx } from "./db";
+import { getSetting } from "./settings";
 import { sessionData, snapshotPlaytime } from "./session-data";
 import { effectiveStatus, GAME_STATUSES, type GameStatus } from "./game-status";
 import { PLATFORMS, type PlatformId } from "./platforms";
@@ -44,6 +45,7 @@ interface OwnershipRow {
   title: string;
   playtime_min: number;
   last_played: string | null;
+  first_seen: string | null;
   cover_url: string | null;
   source: Ownership["source"];
   achievements_earned: number | null;
@@ -142,6 +144,7 @@ export function listGames(): Game[] {
         title: o.title,
         playtimeMin: o.playtime_min,
         lastPlayed: o.last_played,
+        firstSeen: o.first_seen,
         source: o.source,
         achievementsEarned: o.achievements_earned,
         achievementsTotal: o.achievements_total,
@@ -244,9 +247,11 @@ export function upsertOwnership(input: OwnershipInput): number {
   }
 
   const gameId = findOrCreateGame(input.meta?.title ?? input.title, input.meta?.igdbId);
+  const syncKeys = { steam: "steam.lastSync", xbox: "xbox.lastSync", playstation: "psn.lastSync", gog: "gog.lastSync", epic: "epic.lastSync", gamepass: "gamepass.lastSync" } as const;
+  const syncKey = syncKeys[input.platform as keyof typeof syncKeys];
   d.prepare(
-    `INSERT INTO ownerships (game_id, platform, external_id, title, playtime_min, last_played, cover_url, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ownerships (game_id, platform, external_id, title, playtime_min, last_played, cover_url, source, first_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     gameId,
     input.platform,
@@ -256,6 +261,7 @@ export function upsertOwnership(input: OwnershipInput): number {
     input.lastPlayed ?? null,
     input.coverUrl ?? null,
     input.source ?? "sync",
+    input.source === "manual" || input.source === "demo" || (syncKey && getSetting(syncKey)) ? new Date().toISOString() : null,
   );
   saveOwnershipExtras(input);
   if (input.meta) {

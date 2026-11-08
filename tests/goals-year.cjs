@@ -347,7 +347,7 @@ test("settings key 'goals' and /api/goals persist and delete goals without schem
   assert.deepEqual(await getRes.json(), { goals: [] });
 });
 
-test("computeYearReview calculates snapshot deltas, fallback 'total' mode, longest/shortest completed, top genre/platform", () => {
+test("computeYearReview keeps unknown totals out of annual statistics and ranks measured activity", () => {
   const now = new Date("2026-11-07T12:00:00.000Z");
   const g1 = makeGame({
     id: 1,
@@ -414,22 +414,33 @@ test("computeYearReview calculates snapshot deltas, fallback 'total' mode, longe
     ],
   });
 
-  // Case A: Ohne mehrstufige Snapshots -> playtimeMode === "total" („Gesamt“)
+  // A single baseline cannot establish annual playtime.
   const reviewTotal = computeYearReview(
     [g1, g2, g3],
     [{ id: 1, game_id: 1, platform: "playstation", taken_at: "2026-08-14 19:30:00", playtime_min: 5400 }],
     2026,
     now,
   );
-  assert.equal(reviewTotal.playtimeMode, "total");
-  assert.equal(reviewTotal.playtimeMin, 5400 + 240 + 1200);
+  assert.equal(reviewTotal.playtimeSource, "unbekannt");
+  assert.equal(reviewTotal.playtimeMin, 0);
   assert.equal(reviewTotal.completedGames.length, 2);
   assert.equal(reviewTotal.longestCompleted.game.title, "Elden Ring");
   assert.equal(reviewTotal.shortestCompleted.game.title, "Inside");
-  assert.equal(reviewTotal.mostPlayedGame.game.title, "Elden Ring");
-  assert.equal(reviewTotal.topPlatform.platform, "playstation");
-  assert.equal(reviewTotal.topGenre.genre, "Action");
-  assert.equal(reviewTotal.newGamesCount, 2); // Inside & Hades II created in 2026
+  assert.equal(reviewTotal.mostPlayedGame, null);
+  assert.equal(reviewTotal.topPlatform, null);
+  assert.equal(reviewTotal.topGenre, null);
+  assert.equal(reviewTotal.newGamesCount, 0);
+  const estimates = computeYearReview([g1, g2, g3], [], 2026, now, [
+    { game_id: 1, platform: "playstation", external_id: "a", unlocked_at: "2025-01-01T00:00:00Z" },
+    { game_id: 1, platform: "playstation", external_id: "b", unlocked_at: "2026-01-01T00:00:00Z" },
+    { game_id: 3, platform: "steam", external_id: "a", unlocked_at: "2026-01-01T00:00:00Z" },
+  ]);
+  assert.equal(estimates.playtimeMin, 3900);
+  assert.equal(estimates.playtimeSource, "geschätzt (Erfolge)");
+  assert.equal(estimates.mostPlayedGame.game.id, 1);
+  assert.equal(estimates.mostPlayedGame.source, "geschätzt (Erfolge)");
+  assert.equal(estimates.topPlatform.platform, "playstation");
+  assert.ok(estimates.availableYears.includes(2025));
 
   // Case B: Mit echten Spielzeit-Schnappschüssen -> playtimeMode === "snapshots" (Zuwächse im Jahr)
   const snapshots = [
@@ -440,7 +451,7 @@ test("computeYearReview calculates snapshot deltas, fallback 'total' mode, longe
   ];
   const reviewSnaps = computeYearReview([g1, g2, g3], snapshots, 2026, now);
   assert.equal(reviewSnaps.playtimeMode, "snapshots");
-  assert.equal(reviewSnaps.playtimeMin, 1500); // 400 + 1100
+  assert.equal(reviewSnaps.playtimeMin, 1100); // Cross-year interval cannot be allocated exactly.
   assert.equal(reviewSnaps.mostPlayedGame.game.title, "Hades II");
   assert.equal(reviewSnaps.mostPlayedGame.playtimeMin, 1100);
   assert.equal(reviewSnaps.mostPlayedGame.isSnapshotDelta, true);

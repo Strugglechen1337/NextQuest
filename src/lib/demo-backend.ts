@@ -29,7 +29,14 @@ export function demoApi(url: string, init?: { method?: string; body?: unknown })
   const s = state(); const u = new URL(url, "https://demo.invalid"); const method = init?.method ?? (init?.body !== undefined ? "POST" : "GET");
   const body = (init?.body ?? {}) as Record<string, unknown>;
   if (u.pathname === "/api/library") return { games: s.games, stats: { total: s.games.length, owned: s.games.filter(g => g.owned).length, duplicates: s.games.filter(g => g.copies > 1).length, completed: s.games.filter(g => g.completed).length, playtimeMin: s.games.reduce((n, g) => n + g.playtimeMin, 0), gamePassOnly: s.games.filter(g => !g.owned && g.inGamePass).length, pendingEnrich: 0 }, settings: { goals: s.goals, "gamepass.enabled": "1" }, igdb: false };
-  if (u.pathname === "/api/stats/year") return { games: s.games, snapshots: [], review: computeYearReview(s.games, [], Number(u.searchParams.get("year")) || undefined), igdb: false };
+  if (u.pathname === "/api/stats/year") {
+    const year = new Date().getUTCFullYear();
+    const unlocks = s.games.flatMap(g => g.ownerships.filter(o => o.playtimeMin > 0).flatMap(o => [
+      { game_id: g.id, platform: o.platform, external_id: "demo-current", unlocked_at: `${year}-02-01T00:00:00Z` },
+      { game_id: g.id, platform: o.platform, external_id: "demo-previous", unlocked_at: `${year - 1}-02-01T00:00:00Z` },
+    ]));
+    return { games: s.games, snapshots: [], unlocks, review: computeYearReview(s.games, [], Number(u.searchParams.get("year")) || undefined, new Date(), unlocks), igdb: false };
+  }
   if (u.pathname === "/api/check") { const input = parseStoreInput(u.searchParams.get("q") ?? ""); return { query: input.title, unresolved: !!input.kind, ...matchGames(s.games, input, normalizeTitle) }; }
   if (u.pathname === "/api/demo") { resetDemo(); return { count: state().games.length }; }
   if (u.pathname === "/api/goals") {
@@ -42,7 +49,7 @@ export function demoApi(url: string, init?: { method?: string; body?: unknown })
     const title = String(body.title ?? "").trim(); const platform = body.platform as PlatformId;
     if (!title || !PLATFORMS[platform]?.manual) throw new Error("Bitte Titel und Plattform angeben.");
     const id = Math.max(0, ...s.games.map(g => g.id)) + 1; const oid = Math.max(0, ...s.games.flatMap(g => g.ownerships.map(o => o.id))) + 1; const minutes = Math.max(0, Number(body.playtimeHours) || 0) * 60;
-    const ownership: Ownership = { id: oid, platform, externalId: `manual-${id}`, title, playtimeMin: minutes, lastPlayed: null, source: "manual" };
+    const ownership: Ownership = { id: oid, platform, externalId: `manual-${id}`, title, playtimeMin: minutes, lastPlayed: null, firstSeen: new Date().toISOString(), source: "manual" };
     s.games.push({ id, title, igdbId: null, coverUrl: null, rating: null, ratingCount: null, genres: [], modes: [], keywords: [], sessionPref: null, ttbHastily: null, ttbNormally: null, ttbCompletely: null, releaseYear: null, summary: null, summaryDe: null, completed: false, status: "open", createdAt: new Date().toISOString(), enrichState: "manual", ownerships: [ownership], playtimeMin: minutes, lastPlayed: null, copies: 1, inGamePass: false, owned: true }); save(s); return { id };
   }
   const match = u.pathname.match(/^\/api\/games\/(\d+)(\/feedback)?$/);

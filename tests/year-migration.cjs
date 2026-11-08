@@ -1,0 +1,41 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const Module = require("node:module");
+const test = require("node:test");
+const ts = require("typescript");
+const { DatabaseSync } = require("node:sqlite");
+
+const original = Module._load;
+Module._load = function(name, ...rest) { return name === "server-only" ? {} : original.call(this, name, ...rest); };
+require.extensions[".ts"] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText, filename);
+const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), "nextquest-year-migration-"));
+process.env.DATA_DIR = dir;
+const legacy = new DatabaseSync(path.join(dir, "nextquest.db"));
+legacy.exec(`CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE games(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,norm_title TEXT NOT NULL,igdb_id INTEGER UNIQUE,cover_url TEXT,rating REAL,rating_count INTEGER,genres TEXT,modes TEXT,ttb_hastily INTEGER,ttb_normally INTEGER,ttb_completely INTEGER,release_year INTEGER,summary TEXT,completed INTEGER NOT NULL DEFAULT 0,completed_at TEXT,enrich_state TEXT NOT NULL DEFAULT 'pending',created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE ownerships(id INTEGER PRIMARY KEY AUTOINCREMENT,game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,platform TEXT NOT NULL,external_id TEXT NOT NULL,title TEXT NOT NULL,playtime_min INTEGER NOT NULL DEFAULT 0,last_played TEXT,cover_url TEXT,source TEXT NOT NULL DEFAULT 'sync',UNIQUE(platform,external_id));
+INSERT INTO settings VALUES ('steam.lastSync','2020-01-01');
+INSERT INTO games(id,title,norm_title,completed,completed_at) VALUES (1,'Old','old',1,'2020-03-04');
+INSERT INTO ownerships(game_id,platform,external_id,title,playtime_min) VALUES (1,'steam','old','Old',123);`);
+legacy.close();
+const { db } = require("../src/lib/db.ts");
+const { listGames, upsertOwnership } = require("../src/lib/library.ts");
+const { computeYearReview } = require("../src/lib/year-review.ts");
+const { setSetting } = require("../src/lib/settings.ts");
+
+test("old database migrates additively and imports treat existing games as baseline", () => {
+ const old = listGames()[0];
+ assert.equal(old.title, "Old"); assert.equal(old.playtimeMin, 123); assert.equal(old.completedAt, "2020-03-04");
+ assert.equal(old.ownerships[0].firstSeen, null);
+ assert.equal(db().prepare("SELECT value FROM settings WHERE key='steam.lastSync'").get().value, "2020-01-01");
+ upsertOwnership({ platform:"xbox", externalId:"first", title:"Baseline" });
+ setSetting("xbox.lastSync", "2020-01-01");
+ upsertOwnership({ platform:"xbox", externalId:"second", title:"New" });
+ const games = listGames();
+ assert.equal(games.find(g => g.title === "Baseline").ownerships[0].firstSeen, null);
+ assert.ok(games.find(g => g.title === "New").ownerships[0].firstSeen);
+ const review = computeYearReview(games, [], new Date().getUTCFullYear());
+ assert.deepEqual(review.newGames.map(g => g.title), ["New"]);
+});
