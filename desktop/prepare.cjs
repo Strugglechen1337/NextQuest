@@ -1,0 +1,10 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const out = path.join(__dirname, 'server');
+fs.rmSync(out, { recursive: true, force: true });
+fs.cpSync(path.join(root, '.next/standalone'), out, { recursive: true, dereference: true });
+fs.cpSync(path.join(root, 'public'), path.join(out, 'public'), { recursive: true });
+fs.cpSync(path.join(root, '.next/static'), path.join(out, '.next/static'), { recursive: true });
+fs.writeFileSync(path.join(out, 'commit.txt'), process.env.NEXTQUEST_COMMIT || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim());

@@ -62,3 +62,13 @@ Daten landen lokal in `./data/nextquest.db` (in `.gitignore`).
 Tech-Stack: Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · SQLite über das in Node 22 eingebaute `node:sqlite`.
 
 > Persönliches Projekt. Einige Plattform-Schnittstellen sind inoffiziell und nur für den privaten Gebrauch gedacht.
+
+## Windows-App
+
+Das Setup `NextQuest-Setup-<Version>.exe` steht in den [GitHub-Releases](https://github.com/Strugglechen1337/NextQuest/releases) bereit. Das Setup ist nicht signiert; Windows SmartScreen kann deshalb warnen. Über „Weitere Informationen“ und „Trotzdem ausführen“ lässt sich die Installation fortsetzen.
+
+Beim ersten Start kann der Datenordner gewählt werden; standardmäßig liegt er unter `%LOCALAPPDATA%\NextQuest\data`. Wenn Windows nach Netzwerkzugriff fragt, privates Netzwerk erlauben. Die App bleibt beim Schließen des Fensters im Infobereich aktiv und kann so die geplanten Aufgaben ausführen.
+
+Im Infobereich „Auf dem Handy öffnen“ wählen und den QR-Code mit einem Handy im selben WLAN scannen. Dort stehen auch Adresse und Passwort; der Benutzername ist beliebig. Im Handy-Browser kann NextQuest zum Startbildschirm hinzugefügt werden. Die Verbindung im Heimnetz ist nicht verschlüsselt.
+
+Updates werden über GitHub Releases angeboten und vor der Installation wird eine Sicherung erstellt. Die Deinstallation entfernt die Anwendung, behält aber den Datenordner; diesen bei Bedarf selbst löschen.

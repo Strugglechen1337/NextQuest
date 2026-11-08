@@ -1,0 +1,30 @@
+name: Windows
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci
+        working-directory: desktop
+      - name: Set version from tag
+        shell: pwsh
+        run: npm version "${env:GITHUB_REF_NAME}" --no-git-tag-version
+        working-directory: desktop
+      - name: Build and publish
+        shell: pwsh
+        run: npm run dist -- --publish always
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXTQUEST_COMMIT: ${{ github.sha }}

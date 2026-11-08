@@ -1,0 +1,66 @@
+{
+  "name": "nextquest-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "prepare-server": "node icon.cjs && node prepare.cjs",
+    "dist": "npm run prepare-server && electron-builder --win nsis",
+    "test": "node --test test.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "de.nextquest.app",
+    "productName": "NextQuest",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "helpers.cjs",
+      "build/icon.png",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server"
+      },
+      {
+        "from": "server/node_modules",
+        "to": "server/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png",
+      "artifactName": "NextQuest-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Strugglechen1337",
+        "repo": "NextQuest"
+      }
+    ]
+  }
+}
