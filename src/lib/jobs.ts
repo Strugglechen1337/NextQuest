@@ -11,6 +11,7 @@ import { syncGog } from "./gog";
 import { syncEpic } from "./epic";
 import { syncGamePass } from "./gamepass";
 import { syncSteamUnlocks } from "./achievement-unlocks";
+import { syncXboxUnlocks, syncPsnUnlocks } from "./platform-unlocks";
 import type { Job, JobKind, JobsStatus } from "./job-types";
 import { backupEnabled, backupStatus, createBackup } from "./backup";
 import { assertNoMaintenance, maintenanceActive } from "./maintenance";
@@ -108,6 +109,10 @@ async function execute(job: Job) {
       }
       job.step = "Steam-Erfolge";
       try { await syncSteamUnlocks(); } catch (e) { job.errors["Steam-Erfolge"] = errorText(e); }
+      job.step = "Xbox-Erfolge";
+      try { await syncXboxUnlocks(); } catch (e) { job.errors["Xbox-Erfolge"] = errorText(e); }
+      job.step = "PlayStation-Trophäen";
+      try { await syncPsnUnlocks(); } catch (e) { job.errors["PlayStation-Trophäen"] = errorText(e); }
       // Metadata failures must not prevent the independent description stage.
       try { await batches(job); } catch (e) { job.errors.Spieldaten = errorText(e); }
       await batches(job, true);

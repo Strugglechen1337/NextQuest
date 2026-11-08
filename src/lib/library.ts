@@ -45,6 +45,7 @@ interface OwnershipRow {
   title: string;
   playtime_min: number;
   last_played: string | null;
+  first_played: string | null;
   first_seen: string | null;
   cover_url: string | null;
   source: Ownership["source"];
@@ -144,6 +145,7 @@ export function listGames(): Game[] {
         title: o.title,
         playtimeMin: o.playtime_min,
         lastPlayed: o.last_played,
+        firstPlayed: o.first_played,
         firstSeen: o.first_seen,
         source: o.source,
         achievementsEarned: o.achievements_earned,
@@ -183,6 +185,7 @@ export interface OwnershipInput {
   title: string;
   playtimeMin?: number;
   lastPlayed?: string | null;
+  firstPlayed?: string | null;
   coverUrl?: string | null;
   source?: Ownership["source"];
   /** Optionale Metadaten, z. B. für Demo-Daten oder manuell gewählte IGDB-Treffer */
@@ -232,12 +235,13 @@ export function upsertOwnership(input: OwnershipInput): number {
   if (existing) {
     snapshotPlaytime(existing.game_id, input.platform);
     d.prepare(
-      `UPDATE ownerships SET title = ?, playtime_min = MAX(playtime_min, ?), last_played = COALESCE(?, last_played),
+      `UPDATE ownerships SET title = ?, playtime_min = MAX(playtime_min, ?), last_played = COALESCE(?, last_played), first_played = COALESCE(?, first_played),
        cover_url = COALESCE(?, cover_url) WHERE id = ?`,
     ).run(
       input.title,
       input.playtimeMin ?? 0,
       input.lastPlayed ?? null,
+      input.firstPlayed ?? null,
       input.coverUrl ?? null,
       existing.id,
     );
@@ -250,8 +254,8 @@ export function upsertOwnership(input: OwnershipInput): number {
   const syncKeys = { steam: "steam.lastSync", xbox: "xbox.lastSync", playstation: "psn.lastSync", gog: "gog.lastSync", epic: "epic.lastSync", gamepass: "gamepass.lastSync" } as const;
   const syncKey = syncKeys[input.platform as keyof typeof syncKeys];
   d.prepare(
-    `INSERT INTO ownerships (game_id, platform, external_id, title, playtime_min, last_played, cover_url, source, first_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ownerships (game_id, platform, external_id, title, playtime_min, last_played, first_played, cover_url, source, first_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     gameId,
     input.platform,
@@ -259,6 +263,7 @@ export function upsertOwnership(input: OwnershipInput): number {
     input.title,
     input.playtimeMin ?? 0,
     input.lastPlayed ?? null,
+    input.firstPlayed ?? null,
     input.coverUrl ?? null,
     input.source ?? "sync",
     input.source === "manual" || input.source === "demo" || (syncKey && getSetting(syncKey)) ? new Date().toISOString() : null,

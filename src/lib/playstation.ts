@@ -113,7 +113,7 @@ function saveTokens(t: PsnTokens) {
 /** Liefert ein gültiges Access-Token und erneuert es bei Bedarf über das Refresh-Token. */
 let refreshing: Promise<string> | null = null;
 
-async function accessToken(forceRefresh = false): Promise<string> {
+export async function accessToken(forceRefresh = false): Promise<string> {
   const token = getSetting("psn.accessToken");
   const expires = getSetting("psn.accessExpires");
   if (!forceRefresh && token && expires && Date.parse(expires) - Date.now() > 60_000) return token;
@@ -136,7 +136,7 @@ async function accessToken(forceRefresh = false): Promise<string> {
   return refreshing;
 }
 
-async function apiJson<T>(path: string, token: string, retry = true): Promise<T> {
+export async function apiJson<T>(path: string, token: string, retry = true): Promise<T> {
   const res = await psnFetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401) {
     if (retry && token === getSetting("psn.accessToken"))
@@ -158,6 +158,7 @@ interface PsnTitle {
   category: string;
   playDuration?: string;
   lastPlayedDateTime?: string;
+  firstPlayedDateTime?: string;
   concept?: { id?: number; name?: string };
 }
 
@@ -175,7 +176,7 @@ export function isoDurationToMinutes(iso: string | null | undefined): number {
   return Math.round(Number(d ?? 0) * 1440 + Number(h ?? 0) * 60 + Number(min ?? 0) + Number(s ?? 0) / 60);
 }
 
-async function fetchPlayedGames(token: string): Promise<PsnTitle[]> {
+export async function fetchPlayedGames(token: string): Promise<PsnTitle[]> {
   const out: PsnTitle[] = [];
   const limit = 200;
   for (let offset = 0, guard = 0; guard < 50; guard++) {
@@ -208,6 +209,7 @@ export interface PsnGame {
   title: string;
   playtimeMin: number;
   lastPlayed: string | null;
+  firstPlayed: string | null;
   coverUrl: string | null;
 }
 
@@ -226,6 +228,7 @@ export function groupTitles(titles: PsnTitle[]): PsnGame[] {
       title: (t.localizedName || t.name || t.concept?.name || t.titleId).replace(/[™®]/g, "").trim(),
       playtimeMin: isoDurationToMinutes(t.playDuration),
       lastPlayed: t.lastPlayedDateTime ?? null,
+      firstPlayed: t.firstPlayedDateTime && Number.isFinite(Date.parse(t.firstPlayedDateTime)) ? new Date(t.firstPlayedDateTime).toISOString() : null,
       coverUrl: t.localizedImageUrl || t.imageUrl || null,
       ps5,
     };
@@ -236,6 +239,7 @@ export function groupTitles(titles: PsnTitle[]): PsnGame[] {
     }
     prev.playtimeMin += g.playtimeMin;
     if (g.lastPlayed && (!prev.lastPlayed || g.lastPlayed > prev.lastPlayed)) prev.lastPlayed = g.lastPlayed;
+    if (g.firstPlayed && (!prev.firstPlayed || g.firstPlayed < prev.firstPlayed)) prev.firstPlayed = g.firstPlayed;
     if (ps5 && !prev.ps5) {
       prev.title = g.title;
       prev.coverUrl = g.coverUrl ?? prev.coverUrl;
@@ -243,7 +247,7 @@ export function groupTitles(titles: PsnTitle[]): PsnGame[] {
     } else if (!prev.coverUrl) prev.coverUrl = g.coverUrl;
   }
   return [...map.values()].map((g) => ({ externalId: g.externalId, title: g.title,
-    playtimeMin: g.playtimeMin, lastPlayed: g.lastPlayed, coverUrl: g.coverUrl }));
+    playtimeMin: g.playtimeMin, lastPlayed: g.lastPlayed, firstPlayed: g.firstPlayed, coverUrl: g.coverUrl }));
 }
 
 export interface PsnTestResult {

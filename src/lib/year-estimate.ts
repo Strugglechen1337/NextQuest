@@ -30,6 +30,7 @@ export function estimateYearPlaytime(
   totalMinutes: number,
   snapshots: readonly YearEstimateSnapshot[],
   unlocks: readonly YearEstimateUnlock[],
+  played?: { first: string | null; last: string | null },
 ): YearEstimate {
   const validTime = (value: string) => {
     const time = Date.parse(value);
@@ -54,6 +55,10 @@ export function estimateYearPlaytime(
   for (const unlock of unlocks) {
     const time = validTime(unlock.unlocked_at);
     if (time === null || (first && time >= first.time) || !unlock.external_id) continue;
+    const firstYear = played?.first ? new Date(played.first).getUTCFullYear() : NaN;
+    const lastYear = played?.last ? new Date(played.last).getUTCFullYear() : NaN;
+    const unlockYear = new Date(time).getUTCFullYear();
+    if (Number.isFinite(firstYear) && unlockYear < firstYear || Number.isFinite(lastYear) && unlockYear > lastYear) continue;
     if (!historical.has(unlock.external_id)) historical.set(unlock.external_id, time);
   }
   const dates = [...historical.values()];

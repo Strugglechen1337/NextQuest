@@ -40,7 +40,7 @@ function object(value: unknown): Record<string, unknown> {
 
 // Current OpenXBL wraps the upstream payload in { code, content }; accept
 // direct payloads and data wrappers as well (including nested wrappers).
-function layers(value: unknown): unknown[] {
+export function layers(value: unknown): unknown[] {
   const result = [value];
   for (let i = 0; i < 10; i++) {
     const data = object(value);
