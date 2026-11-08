@@ -1,7 +1,8 @@
 import { gameGenres, type GenreCategory } from "./genres";
-import { formatDateDe, getGameCompletionDateKey, toDateKey } from "./goals";
+import { formatDateDe, toDateKey } from "./goals";
 import { PLATFORM_ORDER, PLATFORMS, type PlatformId } from "./platforms";
 import type { Game } from "./types";
+import { estimateYearPlaytime, type YearEstimateSource } from "./year-estimate";
 
 export interface PlaytimeSnapshotRow {
   id?: number;
@@ -11,10 +12,13 @@ export interface PlaytimeSnapshotRow {
   playtime_min: number;
 }
 
+export interface AchievementUnlockRow { game_id: number; platform: string; external_id: string; unlocked_at: string }
+
 export interface YearCompletedGame {
   game: Game;
   completedDate: string;
   completedDateLabel: string;
+  completionDateUnknown: boolean;
   playtimeMin: number;
   /** Maßgebliche Dauer für Längstes/Kürzestes Spiel (gespielte Minuten oder IGDB ttbNormally) */
   durationMin: number;
@@ -26,6 +30,7 @@ export interface YearGenreStat {
   gameCount: number;
   completedCount: number;
   sharePercent: number;
+  source: YearEstimateSource;
 }
 
 export interface YearPlatformStat {
@@ -36,6 +41,7 @@ export interface YearPlatformStat {
   playtimeMin: number;
   gameCount: number;
   sharePercent: number;
+  source: YearEstimateSource;
 }
 
 export interface YearMonthStat {
@@ -52,6 +58,8 @@ export interface YearReviewData {
   availableYears: number[];
   /** "snapshots" wenn echte Zuwächse aus playtime_snapshots im Jahr vorliegen, sonst "total" („Gesamt“) */
   playtimeMode: "snapshots" | "total";
+  playtimeSource: YearEstimateSource;
+  firstSnapshot: string | null;
   /** Gespielte Minuten im Jahr (aus Snapshots) bzw. Gesamtspielzeit der im Jahr aktiven Spiele */
   playtimeMin: number;
   /** Gesamte Spielzeit der gesamten Bibliothek als Referenz */
@@ -64,6 +72,7 @@ export interface YearReviewData {
     game: Game;
     playtimeMin: number;
     isSnapshotDelta: boolean;
+    source: YearEstimateSource;
   } | null;
   topGenre: YearGenreStat | null;
   genres: YearGenreStat[];
@@ -110,12 +119,13 @@ export function computeYearReview(
   snapshots: readonly PlaytimeSnapshotRow[] = [],
   requestedYear?: number | null,
   now: Date = new Date(),
+  unlocks: readonly AchievementUnlockRow[] = [],
 ): YearReviewData {
   const currentYear = now.getUTCFullYear();
   const yearsSet = new Set<number>([currentYear]);
 
   for (const g of games) {
-    const yc = extractYear(g.completedAt);
+    const yc = extractYear(g.completedOn ?? g.completedAt);
     const yl = extractYear(g.lastPlayed);
     const ycr = extractYear(g.createdAt);
     if (yc) yearsSet.add(yc);
@@ -130,6 +140,7 @@ export function computeYearReview(
     const ys = extractYear(s.taken_at);
     if (ys) yearsSet.add(ys);
   }
+  for (const u of unlocks) { const y = extractYear(u.unlocked_at); if (y) yearsSet.add(y); }
   if (requestedYear && Number.isInteger(requestedYear) && requestedYear >= 1970 && requestedYear <= 2100) {
     yearsSet.add(requestedYear);
   }
@@ -138,59 +149,63 @@ export function computeYearReview(
   const year =
     requestedYear && yearsSet.has(requestedYear) ? requestedYear : (availableYears[0] ?? currentYear);
 
-  // 1. Spielzeit-Zuwächse im gewählten Jahr aus playtime_snapshots ableiten
-  const groupedSnapshots = new Map<string, PlaytimeSnapshotRow[]>();
-  for (const s of snapshots) {
-    const key = `${s.game_id}:${s.platform}`;
-    const list = groupedSnapshots.get(key) ?? [];
-    list.push(s);
-    groupedSnapshots.set(key, list);
+  // Jede Plattform erhält ihren eigenen Snapshot-Verlauf und ihre eigenen Erfolge.
+  const yearByGame = new Map<number, number>();
+  const sourceByGame = new Map<number, YearEstimateSource>();
+  const platformPlaytime = new Map<PlatformId, number>();
+  const platformGames = new Map<PlatformId, Set<number>>();
+  const sourceByPlatform = new Map<PlatformId, YearEstimateSource>();
+  const monthMinutes = new Array<number>(12).fill(0);
+  const snapshotGroups = new Map<string, PlaytimeSnapshotRow[]>();
+  const unlockGroups = new Map<string, AchievementUnlockRow[]>();
+  const unlockedGamesThisYear = new Set<number>();
+  for (const row of snapshots) {
+    const key = `${row.game_id}:${row.platform}`, group = snapshotGroups.get(key) ?? [];
+    group.push(row); snapshotGroups.set(key, group);
   }
-
-  const snapshotDeltaByGame = new Map<number, number>();
-  const snapshotDeltaByPlatform = new Map<PlatformId, number>();
-  const snapshotGamesByPlatform = new Map<PlatformId, Set<number>>();
-  const snapshotDeltaByMonth = new Array<number>(12).fill(0);
-
-  for (const list of groupedSnapshots.values()) {
-    if (list.length < 2) continue;
-    const sorted = [...list].sort((a, b) => {
-      const ta = toDateKey(a.taken_at) ?? "";
-      const tb = toDateKey(b.taken_at) ?? "";
-      if (ta !== tb) return ta.localeCompare(tb);
-      return (a.id ?? 0) - (b.id ?? 0);
-    });
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const curr = sorted[i];
-      const y = extractYear(curr.taken_at);
-      const delta = curr.playtime_min - prev.playtime_min;
-      if (y === year && delta > 0) {
-        snapshotDeltaByGame.set(curr.game_id, (snapshotDeltaByGame.get(curr.game_id) ?? 0) + delta);
-        const plat = (curr.platform in PLATFORMS ? curr.platform : "other") as PlatformId;
-        snapshotDeltaByPlatform.set(plat, (snapshotDeltaByPlatform.get(plat) ?? 0) + delta);
-        let pSet = snapshotGamesByPlatform.get(plat);
-        if (!pSet) {
-          pSet = new Set<number>();
-          snapshotGamesByPlatform.set(plat, pSet);
-        }
-        pSet.add(curr.game_id);
-        const mIdx = extractMonthIndex(curr.taken_at);
-        if (mIdx !== null) {
-          snapshotDeltaByMonth[mIdx] += delta;
-        }
+  for (const row of unlocks) {
+    const key = `${row.game_id}:${row.platform}`, group = unlockGroups.get(key) ?? [];
+    group.push(row); unlockGroups.set(key, group);
+    if (extractYear(row.unlocked_at) === year) unlockedGamesThisYear.add(row.game_id);
+  }
+  let measured = false, estimated = false;
+  const combine = (a: YearEstimateSource | undefined, b: YearEstimateSource): YearEstimateSource =>
+    a === "geschätzt (Erfolge)" || b === "geschätzt (Erfolge)" ? "geschätzt (Erfolge)" : a === "gemessen" || b === "gemessen" ? "gemessen" : "unbekannt";
+  for (const game of games) {
+    const platforms = new Set(game.ownerships.map(o => o.platform));
+    for (const platform of platforms) {
+      const total = game.ownerships.filter(o => o.platform === platform).reduce((sum, o) => sum + o.playtimeMin, 0);
+      const key = `${game.id}:${platform}`;
+      const rows = snapshotGroups.get(key) ?? [];
+      const events = unlockGroups.get(key) ?? [];
+      const result = estimateYearPlaytime(year, total, rows, events);
+      measured ||= result.measuredMinutes > 0 || result.source === "gemessen";
+      estimated ||= result.source === "geschätzt (Erfolge)";
+      sourceByGame.set(game.id, combine(sourceByGame.get(game.id), result.source));
+      if (result.minutes > 0) {
+        yearByGame.set(game.id, (yearByGame.get(game.id) ?? 0) + result.minutes);
+        platformPlaytime.set(platform, (platformPlaytime.get(platform) ?? 0) + result.minutes);
+        sourceByPlatform.set(platform, combine(sourceByPlatform.get(platform), result.source));
+        const set = platformGames.get(platform) ?? new Set<number>(); set.add(game.id); platformGames.set(platform, set);
+      }
+      // Monatswerte zeigen nur gemessene Intervalle, keine fiktive Verteilung der Schätzung.
+      const sorted = [...rows].sort((a,b) => a.taken_at.localeCompare(b.taken_at) || (a.id ?? 0) - (b.id ?? 0));
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1], curr = sorted[i], m = extractMonthIndex(curr.taken_at);
+        if (extractYear(prev.taken_at) === year && extractYear(curr.taken_at) === year && m !== null && curr.playtime_min >= prev.playtime_min) monthMinutes[m] += curr.playtime_min - prev.playtime_min;
       }
     }
   }
-
-  const totalSnapshotDeltaMin = [...snapshotDeltaByGame.values()].reduce((a, b) => a + b, 0);
-  const playtimeMode: "snapshots" | "total" = totalSnapshotDeltaMin > 0 ? "snapshots" : "total";
+  const playtimeSource: YearEstimateSource = estimated ? "geschätzt (Erfolge)" : measured ? "gemessen" : "unbekannt";
+  const playtimeMode: "snapshots" | "total" = "snapshots";
+  const firstSnapshot = snapshots.filter(s => Number.isFinite(Date.parse(s.taken_at))).sort((a,b) => a.taken_at.localeCompare(b.taken_at))[0]?.taken_at ?? null;
+  const playtimeMin = [...yearByGame.values()].reduce((a,b) => a + b, 0);
 
   // 2. Durchgespielte Spiele des Jahres
   const completedGames: YearCompletedGame[] = [];
   for (const g of games) {
     if (!g.completed && g.status !== "completed") continue;
-    const compKey = getGameCompletionDateKey(g);
+    const compKey = toDateKey(g.completedOn) ?? toDateKey(g.completedAt);
     const compYear = extractYear(compKey);
     if (compYear === year && compKey) {
       const durationMin = g.playtimeMin > 0 ? g.playtimeMin : (g.ttbNormally ?? 0);
@@ -198,6 +213,7 @@ export function computeYearReview(
         game: g,
         completedDate: compKey,
         completedDateLabel: formatDateDe(compKey),
+        completionDateUnknown: !g.completedOn,
         playtimeMin: g.playtimeMin,
         durationMin,
       });
@@ -220,34 +236,15 @@ export function computeYearReview(
       ? completedByLength[completedByLength.length - 1]
       : (completedGames[completedGames.length - 1] ?? null);
 
-  // 4. Im Jahr aktive Spiele bestimmen
-  const completedGameIdsInYear = new Set(completedGames.map((c) => c.game.id));
-  const activeGamesWithDates = games.filter((g) => {
-    if (snapshotDeltaByGame.has(g.id)) return true;
-    if (completedGameIdsInYear.has(g.id)) return true;
-    if (extractYear(g.lastPlayed) === year) return true;
-    return g.ownerships.some((o) => extractYear(o.lastPlayed) === year);
-  });
-
-  // Falls im aktuellen Jahr keine Datumsangaben matchen (z. B. Import ohne lastPlayed), auf gespielte Spiele zurückfallen
-  const activeGames =
-    activeGamesWithDates.length > 0
-      ? activeGamesWithDates
-      : year === currentYear
-        ? games.filter((g) => g.playtimeMin > 0 || g.completed)
-        : [];
-
-  const libraryTotalPlaytimeMin = games.reduce((s, g) => s + g.playtimeMin, 0);
-  const activeTotalPlaytimeMin = activeGames.reduce((s, g) => s + g.playtimeMin, 0);
-  const playtimeMin = playtimeMode === "snapshots" ? totalSnapshotDeltaMin : activeTotalPlaytimeMin;
-
-  // Hilfsfunktion: Maßgebliche Spielzeit eines Spiels für das gewählte Jahr
-  const gameYearPlaytime = (g: Game): number =>
-    playtimeMode === "snapshots" ? (snapshotDeltaByGame.get(g.id) ?? 0) : g.playtimeMin;
+  // Daten ohne Jahresbezug liefern keine erfundene Spielzeit.
+  const completedGameIdsInYear = new Set(completedGames.map(c => c.game.id));
+  const activeGames = games.filter(g => yearByGame.has(g.id) || completedGameIdsInYear.has(g.id) || extractYear(g.lastPlayed) === year || g.ownerships.some(o => extractYear(o.lastPlayed) === year) || unlockedGamesThisYear.has(g.id));
+  const libraryTotalPlaytimeMin = games.reduce((sum, g) => sum + g.playtimeMin, 0);
+  const gameYearPlaytime = (g: Game): number => yearByGame.get(g.id) ?? 0;
 
   // 5. Meistgespieltes Spiel des Jahres
   let mostPlayedGame: YearReviewData["mostPlayedGame"] = null;
-  const candidatePool = playtimeMode === "snapshots" ? games.filter((g) => (snapshotDeltaByGame.get(g.id) ?? 0) > 0) : activeGames;
+  const candidatePool = games.filter(g => gameYearPlaytime(g) > 0);
   if (candidatePool.length > 0) {
     const sortedByPlay = [...candidatePool].sort(
       (a, b) => gameYearPlaytime(b) - gameYearPlaytime(a) || a.title.localeCompare(b.title, "de"),
@@ -257,19 +254,22 @@ export function computeYearReview(
       mostPlayedGame = {
         game: best,
         playtimeMin: gameYearPlaytime(best),
-        isSnapshotDelta: playtimeMode === "snapshots",
+        isSnapshotDelta: sourceByGame.get(best.id) === "gemessen",
+        source: sourceByGame.get(best.id) ?? "unbekannt",
       };
     }
   }
 
   // 6. Lieblingsgenre des Jahres
-  const genreMap = new Map<GenreCategory, { playtimeMin: number; gameCount: number; completedCount: number }>();
+  const genreMap = new Map<GenreCategory, { playtimeMin: number; gameCount: number; completedCount: number; source: YearEstimateSource }>();
   for (const g of activeGames) {
     const gPlay = gameYearPlaytime(g);
+    if (!gPlay) continue;
     const isComp = completedGameIdsInYear.has(g.id);
     for (const cat of gameGenres(g)) {
-      const cur = genreMap.get(cat) ?? { playtimeMin: 0, gameCount: 0, completedCount: 0 };
+      const cur = genreMap.get(cat) ?? { playtimeMin: 0, gameCount: 0, completedCount: 0, source: "unbekannt" as YearEstimateSource };
       cur.playtimeMin += gPlay;
+      cur.source = combine(cur.source, sourceByGame.get(g.id) ?? "unbekannt");
       cur.gameCount += 1;
       if (isComp) cur.completedCount += 1;
       genreMap.set(cat, cur);
@@ -282,6 +282,7 @@ export function computeYearReview(
       playtimeMin: v.playtimeMin,
       gameCount: v.gameCount,
       completedCount: v.completedCount,
+      source: v.source,
       sharePercent: totalGenrePlaytime > 0 ? Math.round((v.playtimeMin / totalGenrePlaytime) * 100) : 0,
     }))
     .sort(
@@ -293,34 +294,6 @@ export function computeYearReview(
   const topGenre = genres[0] ?? null;
 
   // 7. Lieblingsplattform des Jahres
-  const platformPlaytime = new Map<PlatformId, number>();
-  const platformGames = new Map<PlatformId, Set<number>>();
-  if (playtimeMode === "snapshots") {
-    for (const [plat, mins] of snapshotDeltaByPlatform.entries()) {
-      platformPlaytime.set(plat, mins);
-    }
-    for (const [plat, set] of snapshotGamesByPlatform.entries()) {
-      platformGames.set(plat, set);
-    }
-  } else {
-    for (const g of activeGames) {
-      for (const o of g.ownerships) {
-        const oYear = extractYear(o.lastPlayed);
-        // Wenn Ownership ein lastPlayed in einem anderen Jahr hat, aber das Spiel im Jahr aktiv war,
-        // zählen wir Ownerships ohne Widerspruch oder alle Ownerships des aktiven Spiels
-        if (oYear !== null && oYear !== year && g.ownerships.some((x) => extractYear(x.lastPlayed) === year)) {
-          continue;
-        }
-        platformPlaytime.set(o.platform, (platformPlaytime.get(o.platform) ?? 0) + o.playtimeMin);
-        let set = platformGames.get(o.platform);
-        if (!set) {
-          set = new Set<number>();
-          platformGames.set(o.platform, set);
-        }
-        set.add(g.id);
-      }
-    }
-  }
   const totalPlatPlaytime = [...platformPlaytime.values()].reduce((a, b) => a + b, 0);
   const platforms: YearPlatformStat[] = PLATFORM_ORDER.filter(
     (p) => (platformGames.get(p)?.size ?? 0) > 0 || (platformPlaytime.get(p) ?? 0) > 0,
@@ -336,6 +309,7 @@ export function computeYearReview(
         color: info.color,
         playtimeMin: mins,
         gameCount: count,
+        source: sourceByPlatform.get(p) ?? "unbekannt",
         sharePercent: totalPlatPlaytime > 0 ? Math.round((mins / totalPlatPlaytime) * 100) : 0,
       };
     })
@@ -344,7 +318,7 @@ export function computeYearReview(
 
   // 8. Neu hinzugekommene Spiele im Jahr
   const newGames = games
-    .filter((g) => extractYear(g.createdAt) === year)
+    .filter((g) => g.ownerships.length > 0 && g.ownerships.every(o => !!o.firstSeen) && extractYear(g.ownerships.map(o => o.firstSeen!).sort()[0]) === year)
     .sort((a, b) => b.playtimeMin - a.playtimeMin || a.title.localeCompare(b.title, "de"));
   const newGamesCount = newGames.length;
 
@@ -355,7 +329,7 @@ export function computeYearReview(
     fullLabel: `${MONTH_FULL_DE[idx]} ${year}`,
     activeCount: 0,
     completedCount: 0,
-    playtimeMin: playtimeMode === "snapshots" ? snapshotDeltaByMonth[idx] : 0,
+    playtimeMin: monthMinutes[idx],
   }));
 
   for (const c of completedGames) {
@@ -371,9 +345,7 @@ export function computeYearReview(
           : null;
     if (m !== null) {
       byMonth[m].activeCount += 1;
-      if (playtimeMode === "total") {
-        byMonth[m].playtimeMin += g.playtimeMin;
-      }
+
     }
   }
 
@@ -393,6 +365,8 @@ export function computeYearReview(
     year,
     availableYears,
     playtimeMode,
+    playtimeSource,
+    firstSnapshot,
     playtimeMin,
     libraryTotalPlaytimeMin,
     activeGamesCount: activeGames.length,

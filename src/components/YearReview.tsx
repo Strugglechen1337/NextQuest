@@ -8,6 +8,7 @@ import type { Game } from "@/lib/types";
 import {
   computeYearReview,
   type PlaytimeSnapshotRow,
+  type AchievementUnlockRow,
   type YearReviewData,
 } from "@/lib/year-review";
 import { platformsOf } from "./GameCard";
@@ -18,6 +19,7 @@ import type { ShareImageFormat } from "@/lib/share-image";
 interface YearReviewApiResponse {
   review: YearReviewData;
   snapshots: PlaytimeSnapshotRow[];
+  unlocks: AchievementUnlockRow[];
   games: Game[];
   igdb: boolean;
 }
@@ -53,7 +55,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
 
   const review: YearReviewData | null = useMemo(() => {
     if (!payload) return null;
-    return computeYearReview(payload.games, payload.snapshots, selectedYear ?? payload.review.year);
+    return computeYearReview(payload.games, payload.snapshots, selectedYear ?? payload.review.year, new Date(), payload.unlocks ?? []);
   }, [payload, selectedYear]);
 
   const selectedGame = useMemo(
@@ -94,9 +96,9 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
   const {
     year,
     availableYears,
-    playtimeMode,
+    playtimeSource,
+    firstSnapshot,
     playtimeMin,
-    libraryTotalPlaytimeMin,
     activeGamesCount,
     completedGames,
     longestCompleted,
@@ -175,7 +177,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
       ) {
         await navigator.share({
           title: `Mein NextQuest Spieljahr ${year}`,
-          text: `Mein Spieljahr ${year} in NextQuest: ${formatMinutes(playtimeMin)} Spielzeit & ${completedGames.length} durchgespielte Spiele!`,
+          text: `Mein Spieljahr ${year} in NextQuest: ${playtimeSource === "unbekannt" ? "unbekannte Spielzeit" : `${playtimeSource === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(playtimeMin)} Spielzeit`} & ${completedGames.length} durchgespielte Spiele!`,
           files: [file],
         });
         setShareStatus("Jahresrückblick erfolgreich geteilt.");
@@ -284,24 +286,20 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
               <span>✨ Jahresrückblick {year}</span>
               <span>·</span>
               <span>
-                {playtimeMode === "snapshots"
-                  ? `Echte Jahres-Zuwächse aus Spielzeit-Schnappschüssen`
-                  : `Spielzeit als „Gesamt“ gekennzeichnet`}
+                {playtimeSource === "unbekannt" ? "Spielzeit unbekannt" : playtimeSource}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-black/30 p-3.5 backdrop-blur-xs">
                 <div className="text-[11px] font-medium tracking-wider text-violet-200/75 uppercase">
-                  Spielzeit ({playtimeMode === "snapshots" ? `Jahr ${year}` : "Gesamt"})
+                  Spielzeit {year}
                 </div>
                 <div className="mt-1 text-2xl font-black tracking-tight text-white tabular-nums sm:text-3xl">
-                  {formatMinutes(playtimeMin)}
+                  {playtimeSource === "unbekannt" ? "Unbekannt" : `${playtimeSource === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(playtimeMin)}`}
                 </div>
                 <div className="mt-0.5 text-[11px] text-white/55">
-                  {playtimeMode === "snapshots"
-                    ? `Zuwachs ${year} (Gesamt: ${formatMinutes(libraryTotalPlaytimeMin)})`
-                    : `Gesamt (${activeGamesCount} aktive Spiele)`}
+                  {playtimeSource === "geschätzt (Erfolge)" ? "geschätzt aus Erfolgen" : playtimeSource}
                 </div>
               </div>
 
@@ -325,7 +323,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                   {topGenre ? topGenre.genre : "–"}
                 </div>
                 <div className="mt-0.5 text-[11px] text-white/55">
-                  {topGenre ? `${formatMinutes(topGenre.playtimeMin)} · ${topGenre.gameCount} Spiele` : "Keine Daten"}
+                  {topGenre ? `${topGenre.source === "geschätzt (Erfolge)" ? "ca. " : ""}${formatMinutes(topGenre.playtimeMin)} · ${topGenre.gameCount} Spiele` : "Keine Daten"}
                 </div>
               </div>
 
@@ -435,10 +433,10 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                     {mostPlayedGame.game.title}
                   </div>
                   <div className="text-lg font-black text-emerald-300 tabular-nums">
-                    {formatMinutes(mostPlayedGame.playtimeMin)}
+                    {mostPlayedGame.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(mostPlayedGame.playtimeMin)}
                   </div>
                   <div className="text-[11px] text-white/55">
-                    {mostPlayedGame.isSnapshotDelta ? `Im Jahr ${year}` : "Gesamtspielzeit"}
+                    {mostPlayedGame.source === "geschätzt (Erfolge)" ? "geschätzt aus Erfolgen" : "gemessen"}
                   </div>
                 </div>
               </button>
@@ -447,9 +445,8 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
             )}
 
             <div className="mt-3 text-[11px] text-white/50">
-              {playtimeMode === "snapshots"
-                ? "Berechnet aus Spielzeit-Schnappschüssen"
-                : "Aus deiner gesamten erfassten Spielzeit"}
+              {firstSnapshot ? `Exakte Messung seit ${new Date(firstSnapshot).toLocaleDateString("de-DE")}, sofern Vergleichswerte vorliegen; Jahresgrenzen zwischen Messungen bleiben unbekannt.` : "Noch keine Spielzeit-Snapshots vorhanden."}
+              {" "}Spielzeiten ohne Jahresdaten sind nicht enthalten; die Werte können unvollständig sein.
             </div>
           </div>
 
@@ -466,7 +463,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
               <div className="my-3 space-y-2">
                 <div className="text-2xl font-black text-emerald-300">{topGenre.genre}</div>
                 <div className="text-xs text-white/75 tabular-nums">
-                  <b>{formatMinutes(topGenre.playtimeMin)}</b> ({topGenre.sharePercent} % Anteil) ·{" "}
+                  <b>{topGenre.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(topGenre.playtimeMin)}</b> · {topGenre.source} ({topGenre.sharePercent} % Anteil) ·{" "}
                   {topGenre.gameCount} {topGenre.gameCount === 1 ? "Spiel" : "Spiele"}
                 </div>
                 <div className="space-y-1 pt-1">
@@ -475,7 +472,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                       <span className="truncate">
                         {i + 2}. {g.genre}
                       </span>
-                      <span className="tabular-nums">{formatMinutes(g.playtimeMin)}</span>
+                      <span className="tabular-nums">{g.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(g.playtimeMin)}</span>
                     </div>
                   ))}
                 </div>
@@ -505,7 +502,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                   <span className="text-xl font-black text-white">{topPlatform.label}</span>
                 </div>
                 <div className="text-xs text-white/75 tabular-nums">
-                  <b>{formatMinutes(topPlatform.playtimeMin)}</b> ({topPlatform.sharePercent} %) ·{" "}
+                  <b>{topPlatform.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(topPlatform.playtimeMin)}</b> · {topPlatform.source} ({topPlatform.sharePercent} %) ·{" "}
                   {topPlatform.gameCount} {topPlatform.gameCount === 1 ? "Spiel" : "Spiele"}
                 </div>
                 <div className="space-y-1 pt-1">
@@ -514,7 +511,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                       <span className="truncate">
                         {i + 2}. {p.label}
                       </span>
-                      <span className="tabular-nums">{formatMinutes(p.playtimeMin)}</span>
+                      <span className="tabular-nums">{p.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(p.playtimeMin)}</span>
                     </div>
                   ))}
                 </div>
@@ -681,7 +678,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300 tabular-nums">
-                        ✓ {completedDateLabel}
+                        ✓ {completedDateLabel}{item.completionDateUnknown ? " · Datum unbekannt (Abhakdatum)" : ""}
                       </span>
                       {isLongest && (
                         <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
@@ -790,7 +787,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
               Genres & Plattformen {year}
             </h2>
             <p className="text-xs text-white/55">
-              Verteilung nach {playtimeMode === "snapshots" ? `Jahres-Spielzeit ${year}` : "Gesamtspielzeit aktiver Titel"}
+              Verteilung nach Jahres-Spielzeit {year}
             </p>
           </div>
 
@@ -806,7 +803,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium text-white">{g.genre}</span>
                       <span className="text-white/65 tabular-nums">
-                        {formatMinutes(g.playtimeMin)} · {g.gameCount} {g.gameCount === 1 ? "Spiel" : "Spiele"}
+                        {g.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(g.playtimeMin)} · {g.gameCount} {g.gameCount === 1 ? "Spiel" : "Spiele"}
                       </span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
@@ -839,7 +836,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                         </span>
                       </div>
                       <span className="font-semibold text-white tabular-nums">
-                        {formatMinutes(p.playtimeMin)} ({p.sharePercent} %)
+                        {p.source === "geschätzt (Erfolge)" ? "ca. " : ""}{formatMinutes(p.playtimeMin)} ({p.sharePercent} %)
                       </span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">

@@ -297,7 +297,7 @@ export function parseGoals(raw: string | null | undefined): Goal[] {
 /** Ermittelt das Abschlussdatum (YYYY-MM-DD) eines durchgespielten Spiels aus vorhandenen Feldern. */
 export function getGameCompletionDateKey(game: Game): string | null {
   if (!isGameCompleted(game)) return null;
-  return toDateKey(game.completedAt) ?? toDateKey(game.lastPlayed) ?? toDateKey(game.createdAt);
+  return toDateKey(game.completedOn) ?? toDateKey(game.completedAt) ?? toDateKey(game.lastPlayed) ?? toDateKey(game.createdAt);
 }
 
 function formatDeadlineSubLabel(deadline: string, isExpired: boolean, status: GoalStatus, nowKey: string): string {

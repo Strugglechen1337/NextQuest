@@ -20,7 +20,8 @@ require.extensions['.ts'] = function(mod, filename) {
 const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'nextquest-xbox-fixture-'));
 process.env.DATA_DIR = dir;
 const { db } = require('../src/lib/db.ts');
-const { upsertOwnership, listGames, setCompleted, setGameStatus, setUserReview, mergeGames } = require('../src/lib/library.ts');
+const { upsertOwnership, listGames, setCompleted, setCompletedOn, setGameStatus, setUserReview, mergeGames } = require('../src/lib/library.ts');
+const { parseSteamUnlocks } = require('../src/lib/achievement-unlocks.ts');
 const { xboxProgress, psnProgress, steamProgress } = require('../src/lib/achievement-progress.ts');
 const { fetchLeavingSoon, LEAVING_CATALOGS } = require('../src/lib/gamepass-leaving.ts');
 const { setSetting } = require('../src/lib/settings.ts');
@@ -30,6 +31,17 @@ const { syncPlayStation } = require('../src/lib/playstation.ts');
 const { syncGamePass } = require('../src/lib/gamepass.ts');
 const { isCandidate, suggestForTime } = require('../src/lib/suggest.ts');
 const reset = () => db().exec('DELETE FROM ownerships; DELETE FROM games; DELETE FROM settings');
+test('Steam unlock dates and editable completion date', () => {
+ reset(); const id = upsertOwnership({platform:'steam',externalId:'100',title:'Test'});
+ const unlocks = parseSteamUnlocks({playerstats:{success:true,achievements:[{apiname:'A',achieved:1,unlocktime:1704067200},{apiname:'B',achieved:0,unlocktime:0}]}});
+ assert.deepEqual(unlocks,[{externalId:'A',unlockedAt:'2024-01-01T00:00:00.000Z'}]);
+ assert.equal(parseSteamUnlocks({playerstats:{success:false}}),null);
+ db().prepare('INSERT INTO achievement_unlocks VALUES (?, ?, ?, ?)').run(id,'steam','A',unlocks[0].unlockedAt);
+ setCompleted(id,true); assert.equal(listGames()[0].completedOn,'2024-01-01');
+ setCompletedOn(id,'2023-04-05'); assert.equal(listGames()[0].completedOn,'2023-04-05');
+ assert.throws(()=>setCompletedOn(id,'2023-02-30'));
+ setCompletedOn(id,null); assert.equal(listGames()[0].completedOn,null);
+});
 test('status/completed and merge preserve journal and explicit target fields', () => {
  reset(); const a=upsertOwnership({platform:'steam',externalId:'a',title:'A'}), b=upsertOwnership({platform:'xbox',externalId:'b',title:'B'});
  db().prepare('UPDATE games SET completed=1 WHERE id=?').run(a);

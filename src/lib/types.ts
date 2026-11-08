@@ -7,6 +7,7 @@ export interface Ownership {
   title: string;
   playtimeMin: number;
   lastPlayed: string | null;
+  firstSeen?: string | null;
   source: "sync" | "manual" | "demo";
   achievementsEarned?: number | null;
   achievementsTotal?: number | null;
@@ -42,6 +43,7 @@ export interface Game {
   summaryDeSource?: { source: string; url?: string } | null;
   completed: boolean;
   completedAt?: string | null;
+  completedOn?: string | null;
   createdAt?: string | null;
   status?: import("./game-status").GameStatus;
   userNote?: string | null;

@@ -1,10 +1,10 @@
 import { handle } from "@/lib/api";
 import { db, tx } from "@/lib/db";
-import { applyMeta, setCompleted, setGameStatus, setUserReview, type GameMeta } from "@/lib/library";
+import { applyMeta, setCompleted, setCompletedOn, setGameStatus, setUserReview, type GameMeta } from "@/lib/library";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const body = (await req.json()) as { completed?: boolean; meta?: GameMeta; sessionPref?: unknown; status?: import("@/lib/game-status").GameStatus; userNote?: unknown; userRating?: unknown };
+  const body = (await req.json()) as { completed?: boolean; completedOn?: unknown; meta?: GameMeta; sessionPref?: unknown; status?: import("@/lib/game-status").GameStatus; userNote?: unknown; userRating?: unknown };
   return handle(() => tx(() => {
     const gameId = Number(id);
     if (body.sessionPref !== undefined) {
@@ -15,6 +15,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
     if (typeof body.completed === "boolean") setCompleted(gameId, body.completed);
     if (body.status !== undefined) setGameStatus(gameId, body.status);
+    if (body.completedOn !== undefined) setCompletedOn(gameId, body.completedOn);
     setUserReview(gameId, body.userNote, body.userRating);
     if (body.meta) {
       const target = applyMeta(gameId, body.meta!, "done");
