@@ -7,6 +7,7 @@ export interface Ownership {
   title: string;
   playtimeMin: number;
   lastPlayed: string | null;
+  firstPlayed?: string | null;
   firstSeen?: string | null;
   source: "sync" | "manual" | "demo";
   achievementsEarned?: number | null;

@@ -1,0 +1,51 @@
+﻿const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const Module = require('node:module');
+const test = require('node:test');
+const ts = require('typescript');
+const load = Module._load;
+Module._load = function(n, p, m) { return n === 'server-only' ? {} : load.call(this, n, p, m); };
+require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,file);
+process.env.DATA_DIR = fs.mkdtempSync(path.join(process.env.TEMP || os.tmpdir(), 'nq-unlocks-'));
+const {db} = require('../src/lib/db.ts');
+const {upsertOwnership} = require('../src/lib/library.ts');
+const {setSetting} = require('../src/lib/settings.ts');
+const {parseXboxUnlocks,parsePsnUnlocks,syncXboxUnlocks,syncPsnUnlocks} = require('../src/lib/platform-unlocks.ts');
+const xbox = {achievements:[{id:'1',progressState:'Achieved',progression:{timeUnlocked:'2022-01-01T00:00:00Z'}},{id:'2',progressState:'NotStarted'}]};
+test('Xbox wrapper and plain payload, and PlayStation dates', () => {
+  assert.deepEqual(parseXboxUnlocks({code:200,content:JSON.stringify(xbox)}), parseXboxUnlocks(xbox));
+  assert.equal(parseXboxUnlocks(xbox).length, 1);
+  assert.equal(parsePsnUnlocks({trophies:[{trophyId:3,earned:true,earnedDateTime:'2021-01-01T00:00:00Z'},{trophyId:4,earned:false}]},'NPWR').length, 1);
+});
+test('Xbox cache, failures and rate limits preserve data', async () => {
+  setSetting('xbox.apiKey','fixture'); setSetting('xbox.xuid','123');
+  upsertOwnership({platform:'xbox',externalId:'1',title:'First',playtimeMin:10});
+  upsertOwnership({platform:'xbox',externalId:'2',title:'Second',playtimeMin:10});
+  let calls=0;
+  global.fetch = async (_url, opts) => { calls++; assert.equal(opts.headers['Accept-Language'],'de-DE'); return calls === 1 ? Response.json(xbox) : new Response('',{status:429}); };
+  assert.equal(await syncXboxUnlocks(),1); assert.equal(calls,2);
+  global.fetch = async () => { calls++; return new Response('',{status:500}); };
+  assert.equal(await syncXboxUnlocks(),0); assert.equal(calls,3);
+  assert.equal(db().prepare("SELECT COUNT(*) AS n FROM achievement_unlocks WHERE platform='xbox'").get().n,1);
+  await syncXboxUnlocks(); assert.equal(calls,3);
+});
+test('PSN trophies are stored and cached', async () => {
+  setSetting('psn.refreshToken','fixture'); setSetting('psn.accessToken','fixture'); setSetting('psn.accessExpires','2099-01-01T00:00:00Z');
+  upsertOwnership({platform:'playstation',externalId:'concept:1',title:'PS Game',playtimeMin:30});
+  let calls=0;
+  global.fetch = async url => { calls++; return String(url).includes('gamelist') ? Response.json({titles:[{titleId:'PPSA1',name:'PS Game',category:'ps5_native_game',concept:{id:1}}]}) : String(url).includes('trophyTitles') ? Response.json({titles:[{npTitleId:'PPSA1',trophyTitles:[{npCommunicationId:'NPWR1',npServiceName:'trophy2'}]}]}) : Response.json({trophies:[{trophyId:1,earned:true,earnedDateTime:'2023-01-01T00:00:00Z'}]}); };
+  assert.equal(await syncPsnUnlocks(),1); assert.equal(calls,3);
+  assert.equal(await syncPsnUnlocks(),0); assert.equal(calls,3);
+  assert.equal(db().prepare("SELECT COUNT(*) AS n FROM achievement_unlocks WHERE platform='playstation'").get().n,1);
+});
+test('PSN rate limit resumes without overwriting prior unlocks', async () => {
+  upsertOwnership({platform:'playstation',externalId:'concept:2',title:'Second PS',playtimeMin:15});
+  let calls=0;
+  global.fetch = async url => { calls++; return String(url).includes('gamelist') ? Response.json({titles:[{titleId:'PPSA2',name:'Second PS',category:'ps5_native_game',concept:{id:2}}]}) : new Response('',{status:429}); };
+  assert.equal(await syncPsnUnlocks(),0); assert.equal(calls,2);
+  assert.equal(db().prepare("SELECT COUNT(*) AS n FROM achievement_unlocks WHERE platform='playstation'").get().n,1);
+  global.fetch = async url => String(url).includes('gamelist') ? Response.json({titles:[{titleId:'PPSA2',name:'Second PS',category:'ps5_native_game',concept:{id:2}}]}) : String(url).includes('trophyTitles') ? Response.json({titles:[{npTitleId:'PPSA2',trophyTitles:[{npCommunicationId:'NPWR2',npServiceName:'trophy2'}]}]}) : Response.json({trophies:[]});
+  assert.equal(await syncPsnUnlocks(),1);
+});

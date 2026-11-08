@@ -178,7 +178,10 @@ export function computeYearReview(
       const key = `${game.id}:${platform}`;
       const rows = snapshotGroups.get(key) ?? [];
       const events = unlockGroups.get(key) ?? [];
-      const result = estimateYearPlaytime(year, total, rows, events);
+      const owners = game.ownerships.filter(o => o.platform === platform);
+      const first = owners.map(o => o.firstPlayed).filter((d): d is string => !!d).sort()[0] ?? null;
+      const last = owners.map(o => o.lastPlayed).filter((d): d is string => !!d).sort().at(-1) ?? null;
+      const result = estimateYearPlaytime(year, total, rows, events, platform === "playstation" ? { first, last } : undefined);
       measured ||= result.measuredMinutes > 0 || result.source === "gemessen";
       estimated ||= result.source === "geschätzt (Erfolge)";
       sourceByGame.set(game.id, combine(sourceByGame.get(game.id), result.source));
