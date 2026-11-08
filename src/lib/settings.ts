@@ -3,6 +3,7 @@ import { db } from "./db";
 
 export const SETTING_KEYS = [
   "jobs.last",
+  "backup.last",
   "update.auto",
   "auto.enabled",
   "auto.time",

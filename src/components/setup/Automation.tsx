@@ -7,6 +7,7 @@ import { Step, fmtDate } from "./parts";
 
 const KIND_LABELS: Record<string, string> = {
   "sync-all": "Kompletter Abgleich",
+  backup: "Sicherung",
   enrich: "Spieldaten",
   "enrich-refresh": "Spieldaten aktualisiert",
   "enrich-retry": "Nicht gefundene neu gesucht",
@@ -63,6 +64,7 @@ export function Automation() {
       <p className="text-sm text-white/65">Letzter Lauf: {status.last ? `${fmtDate(status.last.endedAt ?? status.last.startedAt)} (${KIND_LABELS[status.last.kind] ?? status.last.kind}${status.last.endedAt ? " – fertig" : " – läuft/abgebrochen"}${result(status.last) ? ` · ${result(status.last)}` : ""})` : "Noch keiner"}</p>
       {status.last?.note && <p className="text-sm text-white/65">{status.last.note}</p>}
       {status.last && Object.entries(status.last.errors).filter(([name]) => !status.last!.platforms[name]).map(([name, message]) => <p key={name} className="text-sm text-red-300">{name}: {message}</p>)}
+      <p className="text-sm text-white/65">Sicherung vor dem automatischen Abgleich: {status.backup.enabled ? "aktiv" : "deaktiviert"}</p>
       <p className="text-sm text-white/65">Nächster Lauf: {status.nextRun ? fmtDate(status.nextRun) : "Ausgeschaltet"}</p>
     </>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}

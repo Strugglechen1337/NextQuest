@@ -1,4 +1,4 @@
-export const JOB_KINDS = ["enrich", "enrich-refresh", "enrich-retry", "descriptions", "sync-all"] as const;
+export const JOB_KINDS = ["enrich", "enrich-refresh", "enrich-retry", "descriptions", "sync-all", "backup"] as const;
 export type JobKind = typeof JOB_KINDS[number];
 export interface Job {
   id: string;
@@ -19,4 +19,5 @@ export interface JobsStatus {
   last: Job | null;
   auto: { enabled: boolean; time: string; lastRun: string | null };
   nextRun: string | null;
+  backup: { enabled: boolean; directory: string; count: number; last: string | null };
 }
