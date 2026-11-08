@@ -5,5 +5,6 @@ async function CheckContent({ searchParams }: { searchParams: Promise<{ q?: stri
   return <Check initialQuery={typeof q === "string" ? q : ""} />;
 }
 export default function CheckPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  if (process.env.NEXT_PUBLIC_DEMO === "1") return <Check initialQuery="" />;
   return <Suspense fallback={<p>Wird geladen …</p>}><CheckContent searchParams={searchParams} /></Suspense>;
 }

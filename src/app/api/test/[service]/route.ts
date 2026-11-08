@@ -8,7 +8,7 @@ import { testSteam } from "@/lib/steam";
 import { testPlayStation } from "@/lib/playstation";
 
 /** Testet Zugangsdaten und speichert sie bei Erfolg. */
-export async function POST(req: Request, ctx: RouteContext<"/api/test/[service]">) {
+export async function POST(req: Request, ctx: { params: Promise<{ service: string }> }) {
   const { service } = await ctx.params;
   const body = (await req.json()) as Record<string, string>;
   return handle(async () => {

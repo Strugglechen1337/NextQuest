@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 export function AppNav() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  useEffect(() => { fetch("/api/update").then(r => r.json()).then(data => setUpdateAvailable(data.available === true)).catch(() => {}); }, []);
+  useEffect(() => { if (process.env.NEXT_PUBLIC_DEMO === "1") return; fetch("/api/update").then(r => r.json()).then(data => setUpdateAvailable(data.available === true)).catch(() => {}); }, []);
   const pathname = usePathname();
   const isSetup = pathname?.startsWith("/setup") ?? false;
   const isStats = pathname?.startsWith("/stats") ?? false;
@@ -14,6 +14,7 @@ export function AppNav() {
 
   return (
     <>
+      {process.env.NEXT_PUBLIC_DEMO === "1" && <div className="bg-violet-500/20 px-4 py-2 text-center text-sm">Demo · Daten bleiben in diesem Browser <button className="ml-3 underline" onClick={async () => { const { resetDemo } = await import("@/lib/demo-backend"); resetDemo(); window.location.reload(); }}>Demo zurücksetzen</button></div>}
       <header className="site-header sticky top-0 z-30 border-b border-white/10 bg-[#0b0d14]/90 backdrop-blur-md">
         <nav
           className="app-container flex min-h-13 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5 sm:justify-start sm:gap-6 sm:py-3"

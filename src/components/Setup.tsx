@@ -20,6 +20,7 @@ export function Setup() {
     load();
   }, [load]);
 
+  if (process.env.NEXT_PUBLIC_DEMO === "1") return <section className="mx-auto max-w-3xl space-y-4 card p-6"><h1 className="text-2xl font-bold">Einrichtung</h1><p>Das ist die Demo – für deine echten Spiele lade die Windows-App herunter oder nutze Docker/Linux.</p><a className="btn-primary" href="https://github.com/strugglechen1337/NextQuest#readme">Zur Anleitung und zum Download</a></section>;
   if (!data) return <div className="h-64 animate-pulse rounded-2xl bg-white/5" />;
   const s = data.settings;
   const steamOk = !!s["steam.steamId"];

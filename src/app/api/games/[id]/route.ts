@@ -2,7 +2,7 @@ import { handle } from "@/lib/api";
 import { db, tx } from "@/lib/db";
 import { applyMeta, setCompleted, setGameStatus, setUserReview, type GameMeta } from "@/lib/library";
 
-export async function PATCH(req: Request, ctx: RouteContext<"/api/games/[id]">) {
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = (await req.json()) as { completed?: boolean; meta?: GameMeta; sessionPref?: unknown; status?: import("@/lib/game-status").GameStatus; userNote?: unknown; userRating?: unknown };
   return handle(() => tx(() => {
