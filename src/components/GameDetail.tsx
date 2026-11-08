@@ -167,7 +167,7 @@ export function GameDetail({
                     {PLATFORMS[o.platform]?.subscription ? "Abo" : formatMinutes(o.playtimeMin)}
                   </span>
                   {o.progressPct != null && <div className="w-full space-y-1 text-xs text-emerald-300"><div>Erfolge: ca. {Math.round(o.progressPct)} % geschafft{o.achievementsTotal != null ? ` (${o.achievementsEarned}/${o.achievementsTotal})` : ""}</div><progress className="h-1.5 w-full accent-emerald-400" value={o.progressPct} max={100} aria-label={`Erfolgsfortschritt ${PLATFORMS[o.platform]?.label}`} /></div>}
-                  {game.ownerships.length > 1 && (
+                  {process.env.NEXT_PUBLIC_DEMO !== "1" && game.ownerships.length > 1 && (
                     <button
                       type="button"
                       disabled={busy}
@@ -178,7 +178,7 @@ export function GameDetail({
                       abtrennen
                     </button>
                   )}
-                  {o.source !== "sync" && (
+                  {process.env.NEXT_PUBLIC_DEMO !== "1" && o.source !== "sync" && (
                     <button
                       type="button"
                       disabled={busy}

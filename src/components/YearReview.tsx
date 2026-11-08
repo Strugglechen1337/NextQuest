@@ -251,7 +251,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
             })}
           </div>
 
-          <button
+          {process.env.NEXT_PUBLIC_DEMO === "1" ? <span className="text-xs text-white/55">Das Teilen-Bild ist in der Demo nicht verfügbar.</span> : <button
             type="button"
             onClick={() => {
               setShareStatus(null);
@@ -266,7 +266,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
               <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" strokeLinecap="round" />
             </svg>
             <span>Teilen</span>
-          </button>
+          </button>}
         </div>
       </header>
 

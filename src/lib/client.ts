@@ -3,6 +3,10 @@
 import type { Game, LibraryStats } from "./types";
 
 export async function api<T = unknown>(url: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  if (process.env.NEXT_PUBLIC_DEMO === "1") {
+    const { demoApi } = await import("./demo-backend");
+    return demoApi(url, init) as T;
+  }
   const res = await fetch(url, {
     method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
     headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,

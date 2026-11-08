@@ -12,7 +12,7 @@ import { setSetting } from "@/lib/settings";
 import { syncSteam } from "@/lib/steam";
 import { disconnectPlayStation, syncPlayStation } from "@/lib/playstation";
 
-export async function POST(_req: Request, ctx: RouteContext<"/api/sync/[source]">) {
+export async function POST(_req: Request, ctx: { params: Promise<{ source: string }> }) {
   const { source } = await ctx.params;
   return handle(() => trackSync(async () => {
     // Während eines Server-Updates keine Abgleiche (siehe src/lib/maintenance.ts)
