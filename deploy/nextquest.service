@@ -6,6 +6,8 @@ After=network.target
 Type=simple
 WorkingDirectory=%h/nextquest
 Environment=NODE_ENV=production
+Environment=NEXTQUEST_RUNTIME=linux
+Environment=NEXTQUEST_APP_BACKUP=0
 Environment=NEXT_TELEMETRY_DISABLED=1
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=7918

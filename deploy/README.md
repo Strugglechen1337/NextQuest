@@ -42,3 +42,7 @@ python3 deploy/monitor.py --check-availability
 ```
 
 Der Befehl prüft alle drei Dienste einzeln und das Gate über `http://<server-ip>:7916/` auf HTTP 200 oder 302 und gibt bei jedem Fehler einen Exit-Code ungleich 0 zurück. Für den manuellen Aufruf muss die private Konfiguration zuvor in die Umgebung geladen werden. Schlägt ein Schritt fehl, kein Erfolg melden; Befund beheben oder Rollback durchführen und erneut prüfen. Die Prüfung startet keine Dienste selbst und sendet keine Telegram-Nachricht. Wo möglich zusätzlich von einem anderen Heimnetzgerät testen.
+
+Die App-Unit setzt `NEXTQUEST_RUNTIME=linux` und `NEXTQUEST_APP_BACKUP=0`: Der vorhandene Timer um 03:30 übernimmt die Sicherung. Für andere Installationen erstellt die App vor dem täglichen Abgleich sowie auf Knopfdruck einen SQLite-Snapshot in `NEXTQUEST_BACKUP_DIR` (Standard: `DATA_DIR/backups`). `NEXTQUEST_APP_BACKUP=0` schaltet diese App-Sicherung ab.
+
+Manuelle Wiederherstellung eines App-Snapshots: App und alle anderen Datenbankzugriffe stoppen, die bestehende Datenbank samt `nextquest.db-wal` und `nextquest.db-shm` gesondert sichern, dann den gewünschten Snapshot nach `DATA_DIR/nextquest.db` kopieren und die alten WAL- und SHM-Dateien entfernen. Dateirechte prüfen und die App anschließend starten. Eine Wiederherstellung wurde nicht getestet.

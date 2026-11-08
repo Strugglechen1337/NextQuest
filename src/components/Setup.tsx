@@ -9,6 +9,7 @@ import { EpicStep } from "./setup/EpicStep";
 import { GogStep } from "./setup/GogStep";
 import { Notice } from "./ui";
 import { PlayStationStep } from "./setup/PlayStationStep";
+import { Backup } from "./setup/Backup";
 import { Automation } from "./setup/Automation";
 import { Updates } from "./setup/Updates";
 
@@ -48,6 +49,7 @@ export function Setup() {
       <Updates />
       <IgdbStep data={data} reload={load} />
       <Automation />
+      <Backup />
       <SteamStep data={data} reload={load} />
       <GamePassStep data={data} reload={load} />
       <XboxStep data={data} reload={load} />

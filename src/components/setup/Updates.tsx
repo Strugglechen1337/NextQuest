@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { updateMode, type Runtime } from "@/lib/runtime";
 import { Step } from "./parts";
 
 type Info = { current: string; latest: string | null; available: boolean; behindBy: number | null; changes: { sha: string; message: string; date: string }[]; status: { state: string; step: string; message: string; log: string[] } | null; auto: boolean; configured: boolean; error: string | null };
 export function Updates() {
+  const [version, setVersion] = useState<{ version: string; commit: string; runtime: Runtime } | null>(null);
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -12,6 +14,12 @@ export function Updates() {
   const offline = useRef(false);
   const seenRunning = useRef(false);
   useEffect(() => {
+    let live = true;
+    void fetch("/api/version", { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(v => { if (live) setVersion(v); }).catch(() => { if (live) setError("Version konnte nicht geladen werden."); });
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    if (!version || !updateMode(version.runtime).showUpdater) return;
     let live = true;
     const load = async () => {
       try {
@@ -32,7 +40,7 @@ export function Updates() {
     void load();
     const timer = setInterval(load, 2000);
     return () => { live = false; clearInterval(timer); };
-  }, []);
+  }, [version]);
   const post = async (body: object) => {
     setBusy(true); setError("");
     try {
@@ -44,9 +52,11 @@ export function Updates() {
     } catch (e) { setError(e instanceof Error ? e.message : "Anfrage fehlgeschlagen."); }
     finally { setBusy(false); }
   };
-  return <Step n="↑" title="Updates" subtitle="NextQuest aktuell halten – mit Sicherung und automatischem Zurücksetzen bei Fehlern">
+  return <Step n="↑" title="Updates" subtitle="NextQuest aktuell halten">
+    {version && <p className="text-sm text-white/70">Laufende Version: <code>{version.version} ({version.commit.slice(0, 12)})</code></p>}
+    {version && updateMode(version.runtime).message && <p className="text-sm text-white/70">{updateMode(version.runtime).message}</p>}
     {info && <>
-      <p className="text-sm text-white/70">Laufende Version: <code>{info.current.slice(0, 12)}</code><br />Neueste Version: <code>{info.latest?.slice(0, 12) ?? "unbekannt"}</code></p>
+      <p className="text-sm text-white/70">Neueste Version: <code>{info.latest?.slice(0, 12) ?? "unbekannt"}</code></p>
       {info.error && <p className="text-sm text-white/60">{info.error}</p>}
       {info.available && <p className="text-sm text-emerald-300">Update verfügbar · {info.behindBy} neue Commits</p>}
       {info.changes.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm text-white/70">{info.changes.map(c => <li key={c.sha}>{c.message}</li>)}</ul>}

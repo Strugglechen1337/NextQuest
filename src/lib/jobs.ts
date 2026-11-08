@@ -11,6 +11,7 @@ import { syncGog } from "./gog";
 import { syncEpic } from "./epic";
 import { syncGamePass } from "./gamepass";
 import type { Job, JobKind, JobsStatus } from "./job-types";
+import { backupEnabled, backupStatus, createBackup } from "./backup";
 import { assertNoMaintenance, maintenanceActive } from "./maintenance";
 
 const globalJobs = globalThis as typeof globalThis & { nextQuestJobs?: { running: Job | null; timer?: ReturnType<typeof setInterval> } };
@@ -40,7 +41,7 @@ export function jobsStatus(now = new Date()): JobsStatus {
   try { last = JSON.parse(getSetting("jobs.last") ?? "null"); } catch { /* Ignore an invalid historical entry. */ }
   const auto = { enabled: getSetting("auto.enabled") !== "0", time: getSetting("auto.time") ?? "04:00", lastRun: getSetting("auto.lastRun") };
   const plan = schedule(now, auto.time, auto.lastRun);
-  return { running: state.running, activeSyncs: activeSyncCount(), last, auto, nextRun: auto.enabled ? (plan.due ? now : plan.next).toISOString() : null };
+  return { backup: backupStatus(), running: state.running, activeSyncs: activeSyncCount(), last, auto, nextRun: auto.enabled ? (plan.due ? now : plan.next).toISOString() : null };
 }
 
 const syncCounter = globalThis as unknown as { __nextquestActiveSyncs?: number };
@@ -75,8 +76,17 @@ async function batches(job: Job, descriptions = false) {
 }
 
 async function execute(job: Job) {
+  let syncStarted = false;
   try {
-    if (job.kind === "sync-all") {
+    if (job.kind === "backup") {
+      job.step = "Sicherung";
+      createBackup();
+    } else if (job.kind === "sync-all") {
+      if (backupEnabled()) {
+        job.step = "Sicherung";
+        createBackup();
+      }
+      syncStarted = true;
       const platforms: [string, boolean, () => Promise<unknown>][] = [
         ["Steam", !!getSetting("steam.apiKey") && !!getSetting("steam.steamId"), syncSteam],
         ["Xbox", !!getSetting("xbox.apiKey") && !!getSetting("xbox.xuid"), syncXbox],
@@ -105,7 +115,7 @@ async function execute(job: Job) {
     }
   } catch (e) { job.errors[job.step] = errorText(e); }
   finally {
-    if (job.kind === "sync-all" || job.kind === "descriptions") {
+    if ((job.kind === "sync-all" && syncStarted) || job.kind === "descriptions") {
       job.step = "Steam-Tags";
       try { await steamTagsBatch(); } catch (e) { job.errors["Steam-Tags"] = errorText(e); }
     }
