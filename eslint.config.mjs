@@ -25,6 +25,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Arbeitsordner paralleler Agenten (Orca-Worktrees)
     "nq-*/**",
+    "desktop/**",
   ]),
 ]);
 

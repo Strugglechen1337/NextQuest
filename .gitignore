@@ -62,3 +62,8 @@ next-env.d.ts
 deploy/.venv/
 deploy/_testdeps/
 __pycache__/
+
+/desktop/node_modules/
+/desktop/server/
+/desktop/dist/
+/desktop/build/
