@@ -1,69 +1,50 @@
-# NextQuest – Anleitung für den Hermes-Bot
+# NextQuest – Betrieb & Updates (Docker vs. Linux-Server)
 
-Diese Datei beschreibt, wie ein Automatisierungs-Bot (Hermes) NextQuest im Heimnetz installiert und aktuell hält.
+> **Hinweis zur Einordnung:**
+> Diese Datei beschrieb in der ersten Version den alten Docker-Build-Updater (`scripts/update.sh`), der das Repository klonte und das Image bei jedem Update lokal neu baute.
+>
+> Inzwischen gibt es zwei klar getrennte Betriebsarten:
+> 1. **Docker (NAS, Raspberry Pi, Heimserver):** Nutzt das fertige Multi-Arch-Image `ghcr.io/strugglechen1337/nextquest:latest` (`linux/amd64` + `linux/arm64`). Es ist kein Git-Klon und kein lokaler Build nötig.
+> 2. **Native Linux-Server-Variante (ohne Docker):** Nutzt die systemd-Dienste, den In-App-Updater (`deploy/update.py`), Online-Backups (`deploy/backup.py`) und das Monitoring (`deploy/monitor.py`) – dokumentiert in [`deploy/README.md`](../deploy/README.md).
 
-## Erstinstallation
+---
 
-```bash
-git clone https://github.com/Strugglechen1337/NextQuest.git nextquest   # privates Repo – GitHub-Zugang nötig
-cd nextquest
-cp .env.example .env            # NEXTQUEST_PORT / APP_PASSWORD bei Bedarf setzen
-chmod +x scripts/update.sh
-scripts/update.sh --force       # baut, startet und prüft die App
-```
+## 1. Docker-Variante starten
 
-Danach ist die App unter `http://<server-ip>:<NEXTQUEST_PORT>` erreichbar (Standard 3000).
-Zugangsdaten für Steam, IGDB usw. werden **in der App** unter „Einrichtung“ eingetragen – nicht in `.env`.
-
-## Aktualisieren
-
-| Befehl | Wirkung | Exit-Code |
-|---|---|---|
-| `scripts/update.sh --check` | Nur prüfen, ob auf GitHub eine neue Version liegt | `0` aktuell, `10` Update verfügbar |
-| `scripts/update.sh` | Update einspielen, falls vorhanden | `0` ok, `1` fehlgeschlagen |
-| `scripts/update.sh --force` | Neu bauen, auch ohne neue Version | `0` ok, `1` fehlgeschlagen |
-
-Ablauf eines Updates:
-1. `git fetch` – gibt es einen neuen Commit auf `main`?
-2. Sicherung der Datenbank nach `backups/data-<zeit>-<commit>` (die letzten 5 bleiben)
-3. `git merge --ff-only`, `docker compose build`, `docker compose up -d`
-4. Gesundheitscheck (`/api/health`, bis zu 120 s)
-5. Schlägt der Check fehl → automatischer **Rollback** auf die vorherige Version. Die kaputte Version wird gemerkt und beim nächsten Lauf übersprungen (bis eine neuere kommt oder `--force`).
-
-Die **letzte Zeile** der Ausgabe ist maschinenlesbar:
-
-```
-NEXTQUEST_UPDATE status=<up-to-date|available|updated|rolled-back|failed> from=<commit> to=<commit> [reason="…"]
-```
-
-Empfehlung für Hermes: z. B. alle 6 Stunden `scripts/update.sh` ausführen und nur bei `updated`, `rolled-back` oder `failed` eine Nachricht schicken.
-
-Alternativ per Cron:
-
-```cron
-0 */6 * * * cd /pfad/zu/nextquest && scripts/update.sh >> update.log 2>&1
-```
-
-## Nützliche Endpunkte
-
-- `GET /api/health` → `{"ok":true}` wenn App und Datenbank laufen
-- `GET /api/version` → `{"version":"0.1.0","commit":"abc1234","builtAt":"…"}` – laufende Version
-
-`/api/health` ist immer ohne Passwort erreichbar. Ist `APP_PASSWORD` gesetzt, braucht `/api/version`
-Basic-Auth (`curl -u x:<passwort> …`).
-
-## Wiederherstellen einer Sicherung
+Es wird lediglich die [`docker-compose.yml`](../docker-compose.yml) (und optional `.env` nach Vorlage von [`.env.example`](../.env.example)) benötigt:
 
 ```bash
-docker compose stop nextquest
-docker compose cp backups/data-<zeit>-<commit>/. nextquest:/data/
-docker compose start nextquest
+mkdir nextquest && cd nextquest
+curl -fsSLO https://raw.githubusercontent.com/Strugglechen1337/NextQuest/main/docker-compose.yml
+docker compose up -d
 ```
 
-## Konfiguration des Updaters (optional, Umgebungsvariablen)
+Danach ist NextQuest unter `http://<server-ip>:3000` (bzw. `NEXTQUEST_PORT`) erreichbar.
+Plattform-Zugangsdaten (Steam, IGDB, Xbox, PlayStation, GOG, Epic …) werden direkt **in der App** unter „Einrichtung“ hinterlegt.
 
-| Variable | Standard | Bedeutung |
-|---|---|---|
-| `NEXTQUEST_BRANCH` | `main` | Branch, dem gefolgt wird |
-| `NEXTQUEST_HEALTH_TIMEOUT` | `120` | Sekunden bis zum Rollback |
-| `NEXTQUEST_KEEP_BACKUPS` | `5` | Anzahl aufbewahrter Sicherungen |
+## 2. Updates unter Docker
+
+### Manuell (oder per einfachem Cronjob)
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+### Automatisch per Watchtower
+
+In [`docker-compose.yml`](../docker-compose.yml) ist ein optionaler `watchtower`-Dienst vorbereitet (auskommentiert). Wird er aktiviert, prüft Watchtower nachts automatisch auf ein neues Image von `ghcr.io/strugglechen1337/nextquest:latest`, tauscht den Container bei Bedarf aus und räumt das alte Image auf.
+
+### Altes Skript `scripts/update.sh` (veraltet)
+
+`scripts/update.sh` stammt aus der ersten Version und wird für Neuinstallationen **nicht mehr benötigt**. Falls ein bestehender Cronjob das Skript noch aufruft, baut es nicht mehr lokal aus Git, sondern führt `docker compose pull` + `docker compose up -d` inklusive Prüfung von `/api/health` aus und gibt weiterhin die Statuszeile `NEXTQUEST_UPDATE status=…` aus.
+
+## 3. Datenhaltung & Sicherung unter Docker
+
+- Alle persistenten Daten liegen im Container unter `/data` (in `docker-compose.yml` als Volume `nextquest-data:/data` eingebunden).
+- NextQuest legt automatische und manuelle Datenbanksicherungen selbstständig im Unterordner **`/data/backups`** ab.
+- Wiederherstellen: Container stoppen, gewünschte Sicherung aus `/data/backups` als `/data/nextquest.db` zurückkopieren, Container starten (eine Wiederherstellung per Knopf in der App gibt es noch nicht).
+
+## 4. Nützliche Endpunkte
+
+- `GET /api/health` → `{"ok":true}`, sobald App und SQLite-Datenbank bereit sind (auch bei gesetztem `APP_PASSWORD` ohne Anmeldung erreichbar, wird vom Docker-`HEALTHCHECK` genutzt).
+- `GET /api/version` → `{"version":"0.1.0","commit":"abc1234","builtAt":"…"}` – laufende Version und Commit-Stand des Images. Ist `APP_PASSWORD` gesetzt, ist Basic-Auth nötig (`curl -u x:<passwort> …`).
