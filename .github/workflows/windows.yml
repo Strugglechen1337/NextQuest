@@ -19,7 +19,7 @@ jobs:
         working-directory: desktop
       - name: Set version from tag
         shell: pwsh
-        run: npm version "${env:GITHUB_REF_NAME}" --no-git-tag-version
+        run: npm version "${env:GITHUB_REF_NAME}".TrimStart("v") --no-git-tag-version --allow-same-version
         working-directory: desktop
       - name: Build and publish
         shell: pwsh
