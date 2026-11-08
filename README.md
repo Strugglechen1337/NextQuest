@@ -85,7 +85,7 @@ Wähle die Betriebsart, die am besten zu deinem Setup passt:
 
 | Variante | Ideal für | Aufwand | Status |
 |---|---|---|---|
-| **1. Windows-App** | Einsteiger & Desktop-PCs (inkl. Handy-Zugriff per QR-Code) | Setup starten, fertig | 🧪 Test-Phase – erstes Release folgt |
+| **1. Windows-App** | Einsteiger & Desktop-PCs (inkl. Handy-Zugriff per QR-Code) | Setup starten, fertig | ✅ [Download v0.1.0](https://github.com/Strugglechen1337/NextQuest/releases/latest) |
 | **2. Docker** | NAS (Synology, Unraid), Raspberry Pi, Heimserver (`amd64` & `arm64`) | **3 Befehle** ohne Klonen/Bauen | ✅ Bereit (`ghcr.io`) |
 | **3. Linux nativ** | Eigener Linux-Server / LXC / VM mit `systemd` & Node 22 | Skript- & Service-Setup | ✅ Bereit ([`deploy/README.md`](deploy/README.md)) |
 
