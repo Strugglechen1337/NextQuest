@@ -1,35 +1,41 @@
 #!/usr/bin/env bash
-# NextQuest-Updater
+# NextQuest – Docker-Updater (VERALTET: stammt aus der ersten Version mit lokalem Build)
 #
-# Holt den neuesten Stand von GitHub, sichert die Datenbank, baut den Container neu
-# und prüft, ob die App danach läuft. Schlägt das fehl, wird automatisch auf die
-# vorherige Version zurückgerollt.
+# HINWEIS:
+# NextQuest stellt inzwischen ein fertiges Multi-Arch-Image bereit
+# (ghcr.io/strugglechen1337/nextquest:latest für linux/amd64 und linux/arm64).
+# Ein Git-Klon und lokales Bauen sind für Docker nicht mehr nötig.
+#
+# Standard-Update unter Docker:
+#   docker compose pull && docker compose up -d
+# oder automatisch über den in docker-compose.yml vorbereiteten Watchtower-Dienst.
+# Die App sichert ihre Datenbank selbstständig nach /data/backups.
+# (Die native Linux-Server-Variante ohne Docker nutzt stattdessen deploy/update.py.)
+#
+# Falls dieses Skript weiterhin von älteren Cronjobs oder Bots aufgerufen wird,
+# zieht es nun das fertige Image per `docker compose pull`, startet den Container
+# neu und prüft `/api/health`.
 #
 # Aufruf:
-#   scripts/update.sh            Update, falls eine neue Version da ist
-#   scripts/update.sh --check    Nur prüfen (Exit 0 = aktuell, Exit 10 = Update verfügbar)
-#   scripts/update.sh --force    Neu bauen, auch wenn nichts Neues da ist
+#   scripts/update.sh            Image aktualisieren, falls eine neue Version vorliegt
+#   scripts/update.sh --check    Nur prüfen (Exit 0 = aktuell)
+#   scripts/update.sh --force    Container auch ohne neues Image neu starten
 #
-# Die letzte Ausgabezeile ist immer maschinenlesbar, z. B.:
-#   NEXTQUEST_UPDATE status=updated from=abc1234 to=def5678
-# status: up-to-date | available | updated | rolled-back | failed
-#
-# Exit-Codes: 0 = ok / aktuell / aktualisiert, 10 = Update verfügbar (--check),
-#             1 = fehlgeschlagen (ggf. zurückgerollt), 2 = Aufruffehler
+# Letzte Ausgabezeile (maschinenlesbar):
+#   NEXTQUEST_UPDATE status=<up-to-date|available|updated|rolled-back|failed> from=<id> to=<id>
 
 set -uo pipefail
 
-BRANCH="${NEXTQUEST_BRANCH:-main}"
 SERVICE="nextquest"
+IMAGE="${NEXTQUEST_IMAGE:-ghcr.io/strugglechen1337/nextquest:latest}"
 HEALTH_TIMEOUT="${NEXTQUEST_HEALTH_TIMEOUT:-120}"
-KEEP_BACKUPS="${NEXTQUEST_KEEP_BACKUPS:-5}"
 
 MODE="update"
 case "${1:-}" in
   "") ;;
   --check) MODE="check" ;;
   --force) MODE="force" ;;
-  -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+  -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
   *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
 esac
 
@@ -42,43 +48,15 @@ if ! command -v docker >/dev/null 2>&1; then
   log "Docker nicht gefunden."; result failed "docker missing"; exit 1
 fi
 
-# Nur ein Update gleichzeitig
 LOCK=".update.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
   log "Es läuft bereits ein Update ($LOCK)."; result failed "locked"; exit 1
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  log "Lokale Änderungen im Repo – Update abgebrochen. Bitte prüfen: git status"
-  result failed "local changes"; exit 1
-fi
-
-log "Prüfe GitHub auf neue Version ($BRANCH)…"
-if ! git fetch --quiet origin "$BRANCH"; then
-  result failed "git fetch"; exit 1
-fi
-
-FROM="$(git rev-parse --short HEAD)"
-TO="$(git rev-parse --short "origin/$BRANCH")"
-
-if [ "$FROM" = "$TO" ] && [ "$MODE" != "force" ]; then
-  log "NextQuest ist aktuell ($FROM)."
-  result up-to-date; exit 0
-fi
-
-# Eine Version, die schon einmal zurückgerollt wurde, nicht bei jedem Lauf erneut versuchen
-SKIP_FILE=".update-skip"
-if [ "$MODE" = "update" ] && [ -f "$SKIP_FILE" ] && [ "$(cat "$SKIP_FILE")" = "$TO" ]; then
-  log "Version $TO ist beim letzten Versuch fehlgeschlagen – übersprungen (mit --force erneut versuchen)."
-  result failed "skipped known-bad version"; exit 1
-fi
-
-if [ "$MODE" = "check" ]; then
-  log "Update verfügbar: $FROM → $TO"
-  git --no-pager log --oneline "HEAD..origin/$BRANCH" | sed 's/^/  /'
-  result available; exit 10
-fi
+current_image_id() {
+  docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null | sed 's/^sha256://' | cut -c1-12 || true
+}
 
 health() {
   docker compose exec -T "$SERVICE" node -e \
@@ -95,46 +73,44 @@ wait_healthy() {
   return 1
 }
 
-deploy() {
-  export GIT_COMMIT BUILT_AT
-  GIT_COMMIT="$(git rev-parse --short HEAD)"
-  BUILT_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  docker compose build "$SERVICE" && docker compose up -d "$SERVICE"
-}
+FROM="$(current_image_id)"
+[ -z "$FROM" ] && FROM="none"
 
-# 1) Datenbank sichern (falls der Container schon läuft)
-if docker compose ps --status running --services 2>/dev/null | grep -qx "$SERVICE"; then
-  STAMP="$(date '+%Y%m%d-%H%M%S')"
-  mkdir -p backups
-  if docker compose cp "$SERVICE:/data" "backups/data-$STAMP-$FROM" >/dev/null 2>&1; then
-    log "Datenbank gesichert: backups/data-$STAMP-$FROM"
-    # Nur die letzten $KEEP_BACKUPS Sicherungen behalten
-    ls -1dt backups/data-* 2>/dev/null | tail -n +"$((KEEP_BACKUPS + 1))" | xargs -r rm -rf
-  else
-    log "Warnung: Sicherung fehlgeschlagen – fahre trotzdem fort."
+log "Hinweis: scripts/update.sh ist veraltet. Empfohlen: 'docker compose pull && docker compose up -d' oder Watchtower."
+
+if [ "$MODE" = "check" ]; then
+  log "Prüfe Registry auf neues Image ($IMAGE)…"
+  if ! docker compose pull --quiet "$SERVICE"; then
+    result failed "docker pull"; exit 1
   fi
+  TO="$(current_image_id)"
+  [ -z "$TO" ] && TO="unknown"
+  if [ "$FROM" = "$TO" ]; then
+    log "Image ist aktuell ($FROM)."
+    result up-to-date; exit 0
+  fi
+  log "Neues Image verfügbar: $FROM → $TO"
+  result available; exit 10
 fi
 
-# 2) Neuen Stand holen
-log "Aktualisiere $FROM → $TO…"
-if ! git merge --ff-only --quiet "origin/$BRANCH"; then
-  log "Fast-Forward nicht möglich (lokale Commits?)."; result failed "not fast-forward"; exit 1
+log "Lade aktuelles Image ($IMAGE)…"
+if ! docker compose pull "$SERVICE"; then
+  result failed "docker pull"; exit 1
 fi
 
-# 3) Bauen, starten, prüfen
-if deploy && wait_healthy; then
-  rm -f "$SKIP_FILE"
-  log "Update erfolgreich – NextQuest läuft mit Version $TO."
+TO="$(current_image_id)"
+[ -z "$TO" ] && TO="unknown"
+
+if [ "$FROM" = "$TO" ] && [ "$MODE" != "force" ]; then
+  log "NextQuest-Image ist bereits aktuell ($FROM)."
+  result up-to-date; exit 0
+fi
+
+log "Starte Container neu ($FROM → $TO)…"
+if docker compose up -d "$SERVICE" && wait_healthy; then
+  log "Update erfolgreich – NextQuest läuft mit Image $TO."
   result updated; exit 0
 fi
 
-# 4) Rollback
-log "Neue Version startet nicht – rolle zurück auf $FROM…"
-echo "$TO" > "$SKIP_FILE"
-git reset --hard --quiet "$FROM"
-if deploy && wait_healthy; then
-  log "Zurückgerollt auf $FROM. Bitte Logs prüfen: docker compose logs $SERVICE"
-  result rolled-back "new version unhealthy"; exit 1
-fi
-log "Auch die vorherige Version startet nicht! Bitte manuell prüfen: docker compose logs $SERVICE"
-result failed "rollback unhealthy"; exit 1
+log "Container nach Update nicht gesund. Bitte Logs prüfen: docker compose logs $SERVICE"
+result failed "unhealthy"; exit 1

@@ -1,11 +1,12 @@
 services:
   nextquest:
-    build:
-      context: .
-      args:
-        GIT_COMMIT: ${GIT_COMMIT:-dev}
-        BUILT_AT: ${BUILT_AT:-}
-    image: nextquest:latest
+    image: ghcr.io/strugglechen1337/nextquest:latest
+    # Optional: lokal aus dem Quellcode bauen statt das fertige Image zu nutzen
+    # build:
+    #   context: .
+    #   args:
+    #     NEXTQUEST_COMMIT: ${NEXTQUEST_COMMIT:-dev}
+    #     BUILT_AT: ${BUILT_AT:-}
     container_name: nextquest
     restart: unless-stopped
     ports:
@@ -13,10 +14,25 @@ services:
     environment:
       # Optional: Passwortschutz im Heimnetz (leer = kein Passwort)
       APP_PASSWORD: ${APP_PASSWORD:-}
-      TZ: Europe/Berlin
+      TZ: ${TZ:-Europe/Berlin}
     volumes:
-      # Datenbank inkl. Zugangsdaten – bleibt bei Updates erhalten
+      # Datenbank, Zugangsdaten und automatische Sicherungen (/data/backups) – bleiben bei Updates erhalten
       - nextquest-data:/data
+
+  # Optional: Automatische Container-Updates per Watchtower (prüft täglich um 04:30 Uhr auf ein neues Image).
+  # Hinweis: Vor dem Aktivieren Kommentarzeichen entfernen. NextQuest legt seine Datenbank und eigene
+  # Sicherungen unter /data (inkl. /data/backups) im Volume ab, sodass sie beim Image-Wechsel erhalten bleiben.
+  # watchtower:
+  #   image: containrrr/watchtower:latest
+  #   container_name: nextquest-watchtower
+  #   restart: unless-stopped
+  #   environment:
+  #     TZ: ${TZ:-Europe/Berlin}
+  #     WATCHTOWER_CLEANUP: "true"
+  #     WATCHTOWER_SCHEDULE: "0 30 4 * * *"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: nextquest
 
 volumes:
   nextquest-data:

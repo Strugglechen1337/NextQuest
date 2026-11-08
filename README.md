@@ -24,34 +24,27 @@ Deine gesamte Spielesammlung an einem Ort – und die Antwort auf die Frage: **�
 | Xbox-Käufe, PlayStation | 🔜 Ausbaustufe 2 |
 | GOG, Epic | 🔜 Ausbaustufe 3 |
 
-## Im Heimnetz bereitstellen (Docker)
+## Docker
 
-Voraussetzung: Docker mit Compose-Plugin und Lesezugriff auf dieses private Repo
-(z. B. per **Deploy-Key**: GitHub → Repo → Settings → Deploy keys).
-
-```bash
-git clone git@github.com:Strugglechen1337/NextQuest.git
-cd NextQuest
-cp .env.example .env        # Port / optionales Passwort anpassen
-docker compose up -d --build
-```
-
-Danach im Browser `http://<server-ip>:3000` öffnen und unter **Einrichtung** die Zugänge eintragen.
-
-**Update (automatisch, mit Sicherung und Rollback):**
+Für NAS, Raspberry Pi und Heimserver steht ein fertiges Multi-Arch-Image (`linux/amd64` + `linux/arm64`) in der GitHub Container Registry bereit – ohne Klonen oder eigenes Bauen in **3 Zeilen bis zum Start**:
 
 ```bash
-scripts/update.sh           # Update einspielen, falls vorhanden
-scripts/update.sh --check   # nur prüfen
+mkdir nextquest && cd nextquest
+curl -fsSLO https://raw.githubusercontent.com/Strugglechen1337/NextQuest/main/docker-compose.yml
+docker compose up -d
 ```
 
-Details für den Hermes-Bot (Exit-Codes, maschinenlesbare Ausgabe, Cron, Wiederherstellung): [docs/HERMES.md](docs/HERMES.md)
+Danach im Browser `http://<server-ip>:3000` öffnen und unter **Einrichtung** die gewünschten Plattformen verbinden.
 
-**Wichtig:**
-- Alle Daten (Bibliothek, Zugangsdaten) liegen im Docker-Volume `nextquest-data` und bleiben bei Updates erhalten.
-- `APP_PASSWORD` in `.env` setzt einen Passwortschutz (Benutzername beliebig). Empfohlen, sobald andere Geräte im Netz sind.
-- Die App ist nicht für den Betrieb im öffentlichen Internet gedacht.
-- Healthcheck-Endpunkt: `GET /api/health`
+- **Datenordner (`/data`):** Alle Daten (SQLite-Datenbank `nextquest.db`, Plattform-Zugangsdaten, Einstellungen und Backups) liegen im Container unter `/data` – in `docker-compose.yml` als Volume `nextquest-data:/data` eingebunden – und bleiben bei Updates erhalten.
+- **Passwort (`APP_PASSWORD`):** Optionaler Zugriffsschutz fürs Heimnetz per Umgebungsvariable `APP_PASSWORD` (z. B. über eine `.env`-Datei neben `docker-compose.yml`, siehe [`.env.example`](.env.example); Port über `NEXTQUEST_PORT`, Zeitzone `TZ=Europe/Berlin`). Der Browser fragt dann nach Passwort (Benutzername beliebig). `GET /api/health` bleibt für den Container-Healthcheck frei.
+- **Updates:** Neues Image laden und Container neu starten:
+  ```bash
+  docker compose pull && docker compose up -d
+  ```
+  Für vollautomatische Updates kann in [`docker-compose.yml`](docker-compose.yml) der vorbereitete **Watchtower**-Block einkommentiert werden.
+- **Sicherung (`/data/backups`):** NextQuest sichert die Datenbank selbstständig nach `/data/backups` (innerhalb des `/data`-Volumes) und bietet Sicherung sowie Wiederherstellung direkt in der App an. Für ein externes Host-Backup genügt es, das Volume bzw. `/data/backups` wegzusichern.
+- Weitere Hinweise zum Betrieb: [docs/HERMES.md](docs/HERMES.md) (Docker) bzw. [deploy/README.md](deploy/README.md) (native Linux-Server-Variante).
 
 ## Entwicklung
 
