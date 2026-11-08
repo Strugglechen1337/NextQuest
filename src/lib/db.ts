@@ -55,6 +55,20 @@ CREATE TABLE IF NOT EXISTS playtime_snapshots (
   playtime_min INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS snapshots_game_platform ON playtime_snapshots(game_id, platform, id);
+CREATE TABLE IF NOT EXISTS achievement_unlocks (
+  game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  unlocked_at TEXT NOT NULL,
+  PRIMARY KEY(game_id, platform, external_id)
+);
+CREATE TABLE IF NOT EXISTS achievement_sync_cache (
+  ownership_id INTEGER PRIMARY KEY REFERENCES ownerships(id) ON DELETE CASCADE,
+  playtime_min INTEGER NOT NULL,
+  last_played TEXT,
+  checked_at TEXT NOT NULL,
+  succeeded INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS suggestion_feedback (
   game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   time_class TEXT NOT NULL CHECK(time_class IN ('short', 'medium', 'long')),
@@ -89,7 +103,7 @@ function open(): Database {
   for (const column of ["keywords", "session_pref", "summary_de", "summary_de_state"]) {
     if (!columns.has(column)) db.exec(`ALTER TABLE games ADD COLUMN ${column} TEXT`);
   }
-  for (const [table, fields] of Object.entries({ games: { status: "TEXT", user_note: "TEXT", user_rating: "INTEGER" }, ownerships: { achievements_earned: "INTEGER", achievements_total: "INTEGER", progress_pct: "REAL", leaving_soon: "INTEGER" } })) {
+  for (const [table, fields] of Object.entries({ games: { status: "TEXT", user_note: "TEXT", user_rating: "INTEGER", completed_on: "TEXT" }, ownerships: { achievements_earned: "INTEGER", achievements_total: "INTEGER", progress_pct: "REAL", leaving_soon: "INTEGER", first_played: "TEXT" } })) {
     const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
     for (const [name, type] of Object.entries(fields)) if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
   }

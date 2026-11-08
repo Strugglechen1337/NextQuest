@@ -28,6 +28,7 @@ interface GameRow {
   summary_de_state: string | null;
   completed: number;
   completed_at: string | null;
+  completed_on: string | null;
   created_at: string | null;
   status: string | null;
   user_note: string | null;
@@ -128,6 +129,7 @@ export function listGames(): Game[] {
       summaryDeSource: descriptionSource(g.summary_de_state),
       completed: !!g.completed,
       completedAt: g.completed_at ?? null,
+      completedOn: g.completed_on ?? null,
       createdAt: g.created_at ?? null,
       status: effectiveStatus(g.status, !!g.completed),
       userNote: g.user_note,
@@ -310,7 +312,10 @@ export function applyMeta(gameId: number, meta: Partial<GameMeta>, state?: Game[
 /** Verschiebt alle Einträge von `fromId` nach `intoId` und löscht `fromId`. */
 export function mergeGames(fromId: number, intoId: number) {
   const d = db();
+  d.prepare("UPDATE games SET completed_on = COALESCE(completed_on, (SELECT completed_on FROM games WHERE id = ?)) WHERE id = ?").run(fromId, intoId);
   d.prepare("UPDATE playtime_snapshots SET game_id = ? WHERE game_id = ?").run(intoId, fromId);
+  d.prepare(`INSERT OR IGNORE INTO achievement_unlocks(game_id, platform, external_id, unlocked_at)
+    SELECT ?, platform, external_id, unlocked_at FROM achievement_unlocks WHERE game_id = ?`).run(intoId, fromId);
   d.prepare("INSERT OR IGNORE INTO suggestion_feedback(game_id, time_class, value) SELECT ?, time_class, value FROM suggestion_feedback WHERE game_id = ?").run(intoId, fromId);
   d.prepare("INSERT OR IGNORE INTO steam_tags(game_id, name, votes) SELECT ?, name, votes FROM steam_tags WHERE game_id = ?").run(intoId, fromId);
   const source = d.prepare("SELECT status, completed, user_note, user_rating FROM games WHERE id = ?").get(fromId) as { status: string | null; completed: number; user_note: string | null; user_rating: number | null } | undefined;
@@ -342,7 +347,12 @@ function saveOwnershipExtras(input: OwnershipInput) {
 
 export function setGameStatus(gameId: number, status: GameStatus) {
   if (!Object.hasOwn(GAME_STATUSES, status)) throw new Error("Ungültiger Status");
-  db().prepare("UPDATE games SET status = ?, completed = ?, completed_at = CASE WHEN ? THEN COALESCE(completed_at, datetime('now')) END WHERE id = ?").run(status, status === "completed" ? 1 : 0, status === "completed" ? 1 : 0, gameId);
+  db().prepare("UPDATE games SET status = ?, completed = ?, completed_at = CASE WHEN ? THEN COALESCE(completed_at, datetime('now')) END, completed_on = CASE WHEN ? AND completed = 0 THEN COALESCE(completed_on, (SELECT substr(MAX(unlocked_at), 1, 10) FROM achievement_unlocks WHERE game_id = ?)) ELSE completed_on END WHERE id = ?").run(status, status === "completed" ? 1 : 0, status === "completed" ? 1 : 0, status === "completed" ? 1 : 0, gameId, gameId);
+}
+
+export function setCompletedOn(gameId: number, value: unknown) {
+  if (value !== null && (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value)) throw new Error("Ungültiges Abschlussdatum");
+  db().prepare("UPDATE games SET completed_on = ? WHERE id = ?").run(value as string | null, gameId);
 }
 
 export function setUserReview(gameId: number, note: unknown, rating: unknown) {

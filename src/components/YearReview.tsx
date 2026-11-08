@@ -681,7 +681,7 @@ export function YearReview({ embedded = false }: { embedded?: boolean }) {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300 tabular-nums">
-                        ✓ {completedDateLabel}
+                        ✓ {completedDateLabel}{item.completionDateUnknown ? " · Datum unbekannt (Abhakdatum)" : ""}
                       </span>
                       {isLongest && (
                         <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">

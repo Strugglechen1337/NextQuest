@@ -1,5 +1,5 @@
 import { gameGenres, type GenreCategory } from "./genres";
-import { formatDateDe, getGameCompletionDateKey, toDateKey } from "./goals";
+import { formatDateDe, toDateKey } from "./goals";
 import { PLATFORM_ORDER, PLATFORMS, type PlatformId } from "./platforms";
 import type { Game } from "./types";
 
@@ -15,6 +15,7 @@ export interface YearCompletedGame {
   game: Game;
   completedDate: string;
   completedDateLabel: string;
+  completionDateUnknown: boolean;
   playtimeMin: number;
   /** Maßgebliche Dauer für Längstes/Kürzestes Spiel (gespielte Minuten oder IGDB ttbNormally) */
   durationMin: number;
@@ -115,7 +116,7 @@ export function computeYearReview(
   const yearsSet = new Set<number>([currentYear]);
 
   for (const g of games) {
-    const yc = extractYear(g.completedAt);
+    const yc = extractYear(g.completedOn ?? g.completedAt);
     const yl = extractYear(g.lastPlayed);
     const ycr = extractYear(g.createdAt);
     if (yc) yearsSet.add(yc);
@@ -190,7 +191,7 @@ export function computeYearReview(
   const completedGames: YearCompletedGame[] = [];
   for (const g of games) {
     if (!g.completed && g.status !== "completed") continue;
-    const compKey = getGameCompletionDateKey(g);
+    const compKey = toDateKey(g.completedOn) ?? toDateKey(g.completedAt);
     const compYear = extractYear(compKey);
     if (compYear === year && compKey) {
       const durationMin = g.playtimeMin > 0 ? g.playtimeMin : (g.ttbNormally ?? 0);
@@ -198,6 +199,7 @@ export function computeYearReview(
         game: g,
         completedDate: compKey,
         completedDateLabel: formatDateDe(compKey),
+        completionDateUnknown: !g.completedOn,
         playtimeMin: g.playtimeMin,
         durationMin,
       });
