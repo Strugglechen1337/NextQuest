@@ -89,7 +89,7 @@ Wähle die Betriebsart, die am besten zu deinem Setup passt:
 | **2. Docker** | NAS (Synology, Unraid), Raspberry Pi, Heimserver (`amd64` & `arm64`) | **3 Befehle** ohne Klonen/Bauen | ✅ Bereit (`ghcr.io`) |
 | **3. Linux nativ** | Eigener Linux-Server / LXC / VM mit `systemd` & Node 22 | Skript- & Service-Setup | ✅ Bereit ([`deploy/README.md`](deploy/README.md)) |
 
-### 1. Windows-App *(Test-Phase – erstes Release folgt)*
+### 1. Windows-App
 
 
 Das Setup `NextQuest-Setup-<Version>.exe` steht in den [GitHub-Releases](https://github.com/Strugglechen1337/NextQuest/releases) bereit. Das Setup ist nicht signiert; Windows SmartScreen kann deshalb warnen. Über „Weitere Informationen“ und „Trotzdem ausführen“ lässt sich die Installation fortsetzen.
